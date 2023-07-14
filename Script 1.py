@@ -6,9 +6,9 @@ import numpy as np
 import librosa as li
 import matplotlib.pyplot as plt
 from tqdm import trange
-from IPython.display import Audio
-import re
-import einops
+#from IPython.display import Audio
+#import re
+#import einops
 from einops import rearrange
 import math
 from scipy import signal
@@ -16,7 +16,7 @@ import os
 from torch.utils.data import Dataset, DataLoader
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1]"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
