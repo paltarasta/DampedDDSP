@@ -9,3 +9,6 @@ def damped_synth(pitches, amplitudes, damping, sampling_rate):
     omegas = torch.cumsum(2 * math.pi * pitches / sampling_rate, 1)
     signal = (torch.cos(omegas) * amplitudes * damper).sum(-1, keepdim=True)
     return signal
+
+
+#this is just a test#
