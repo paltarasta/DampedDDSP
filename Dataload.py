@@ -8,18 +8,12 @@ import os
 from torch.utils.data import DataLoader
 ### Load data ###
 
-if 'Y' not in globals():
+audio_dir = "C:/Users/eat_m/Documents/QMUL/Summer_Project/MDB-stem-synth/audio_stems/"
 
-    audio_dir = "C:/Users/eat_m/Documents/QMUL/Summer_Project/MDB-stem-synth/audio_stems/"
+audio_path = os.listdir(audio_dir)
 
-    audio_path = os.listdir(audio_dir)
+MELS_norm, Y = h.LoadAudio(audio_dir, 16000)
 
-    MELS_norm, Y = h.LoadAudio(audio_dir, 16000)
-else:
-    print('HI SCR')
 
 print(Y.shape)
 print(MELS_norm.shape)
-
-torch.save(MELS_norm, 'meltensor.pt')
-torch.save(Y, 'y.pt')

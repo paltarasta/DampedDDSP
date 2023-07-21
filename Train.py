@@ -7,13 +7,18 @@ from tqdm import tqdm
 from Synths import damped_synth
 from einops import rearrange
 import matplotlib.pyplot as plt
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(f"Running on device: {device}")
 
 ### Load tensors and create dataloader ###
 MELS_norm = torch.load('meltensor.pt')
 Y = torch.load('y.pt')
 
 if __name__ == "__main__":
-  myDataset = h.CustomDataset(MELS_norm[:4], Y[:4])
+  myDataset = h.CustomDataset(MELS_norm, Y)
   datasets = h.train_val_dataset(myDataset)
   print(len(datasets['train']))
   print(len(datasets['val']))
@@ -23,11 +28,12 @@ if __name__ == "__main__":
 
   ### Training Loop ###
   model = n.MapToFrequency()
-  criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])
+  model = model.cuda()
+  criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512]).cuda()
   optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
   # Training loop
-  num_epochs = 2
+  num_epochs = 1000
 
   average_loss = []
 
@@ -39,29 +45,26 @@ if __name__ == "__main__":
 
         f, a, d = model(inputs)
 
-        print('f', f.shape,'a', a.shape, 'd', d.shape)
         f_upsampled = h.UpsampleTime(f)
         a_upsampled = h.UpsampleTime(a)
         d_upsampled = h.UpsampleTime(d)
 
         prediction = damped_synth(f_upsampled, a_upsampled, d_upsampled, 16000)
         prediction = rearrange(prediction, 'a b c -> a c b')
-        print('prediction', prediction.shape)
-        print('target', targets.unsqueeze(0).shape)
 
-        loss = criterion(prediction, targets.unsqueeze(0))
+        loss = criterion(prediction.to(device), targets.unsqueeze(0).to(device))
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         running_loss.append(loss.item())
-        tepoch.set_description_str(f"{epoch}, loss = {loss.item():.4f}")
+        tepoch.set_description_str(f"{epoch}, loss = {loss.item():.4f}", refresh=True)
 
       average_loss.append(sum(running_loss)/len(running_loss))
 
       print('AVERAGE LOSS', average_loss[epoch-1])
-
-  print('LOSS', running_loss)
+  torch.save(model.state_dict(), 'damped_weights.pt')
+  #print('LOSS', running_loss)
   plt.plot(running_loss)
   plt.show()
