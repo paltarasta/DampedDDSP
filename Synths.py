@@ -9,3 +9,9 @@ def damped_synth(pitches, amplitudes, damping, sampling_rate):
     omegas = torch.cumsum(2 * math.pi * pitches / sampling_rate, 1)
     signal = (torch.cos(omegas) * amplitudes * damper).sum(-1, keepdim=True)
     return signal
+
+def sinusoidal_synth(pitches, amplitudes, sampling_rate):
+    assert pitches.shape[-1] == amplitudes.shape[-1]
+    omegas = torch.cumsum(2 * math.pi * pitches / sampling_rate, 1)
+    signal = (torch.sin(omegas) * amplitudes).sum(-1, keepdim=True)
+    return signal

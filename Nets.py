@@ -190,7 +190,6 @@ class MapToFrequency(nn.Module):
     out = torch.reshape(out, (out.shape[0], 126, 9*1024))
 
     frequency = self.frequency_dense(out)
-    print('dense', frequency.shape)
     frequency = rearrange(frequency, 'b t (k f) -> b t k f', f=64)
     frequency = self.softmax(frequency)
     frequency = torch.sum(frequency * self.scale, dim=-1)
