@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 import numpy as np
+import Helpers as h
 
 #### Large ResNet ####
 
@@ -203,3 +204,48 @@ class MapToFrequency(nn.Module):
     damping = damping.squeeze(-1)
 
     return frequency, amplitude, damping
+
+
+### Sinusoidal to harmonic encoder ###
+class SinToHarmEncoder(nn.Module):
+  def __init__(self):
+    super(SinToHarmEncoder, self).__init__()
+    self.dense1 = nn.Linear(200, 256)
+    self.dense2 = nn.Linear(512, 256)
+    self.layer_norm = nn.LayerNorm(256)#dunno
+    self.leaky_relu = nn.LeakyReLU()
+    self.gru = nn.GRU(256, hidden_size=512, num_layers=1, batch_first=True)
+    self.harm_amp_out = nn.Linear(256, 1) #1 harmonic amplitude per timestep
+    self.cn_out = nn.Linear(256, 100) #harmonic distribution of amplitudes, so one for each sinusoid, and there are 100 sinusoids
+    self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic
+    self.f0_out = nn.Linear(256, 64) #there is a distribution of 64 bins for the possible fundamental frequency
+    self.amp_scale = h.exp_sigmoid
+    self.softmax = nn.Softmax(dim=2)
+    self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
+
+  def forward(self, x):
+    out = self.dense1(x)
+    out = self.layer_norm(out)
+    out = self.leaky_relu(out)
+
+    out, hidden = self.gru(out)
+   
+    out = self.dense2(out)
+    out = self.layer_norm(out)
+    out = self.leaky_relu(out)
+
+    #Individual dense layers
+    harm_amp = self.harm_amp_out(out)
+    cn = self.cn_out(out)
+    f0 = self.f0_out(out)
+    damping = self.damping_out(out)
+
+    #Scaling
+    harm_amp = self.amp_scale(harm_amp)
+    cn = self.amp_scale(cn)
+    damping = self.amp_scale(damping)
+    with torch.no_grad():
+      f0 = self.softmax(f0)
+      f0 = torch.sum(f0 * self.freq_scale, dim=-1, keepdim=True)
+
+    return harm_amp, cn, f0, damping

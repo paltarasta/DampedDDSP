@@ -8,18 +8,8 @@ from sklearn.model_selection import train_test_split
 import os
 
 #### Helper functions ####
-def round_down(samples, multiple):
-    return multiple * math.floor(samples / multiple)
 
-
-def slice_audio(x, step):
-  slices = []
-  for i in range(step, len(x)+1, step):
-    slices += x[i-step:i].unsqueeze(0)
-  slices = torch.stack(slices)
-  return slices
-
-def UpsampleTime(x, fs=16000):
+def UpsampleTime(x, fs=16000): #upsample time dimension after using encoders
   batch = x[:,0,0].shape[0]
   timesteps = x[0,:,0].shape[0]
   upsampled_timesteps = 4000#fs
@@ -40,25 +30,30 @@ def UpsampleTime(x, fs=16000):
   return upsampled
 
 
-def ReadCSV(csv):
-  csv_data = []
-  times = []
-
-  for line in csv.readlines():
-    line = line.rstrip('\n').split(',')
-    for i in range(len(line)):
-      line[i] = float(line[i])
-    csv_data.append(line[1])
-    times.append(line[0])
-
-  return csv_data, times
-
-
-#acids code
+### Acids code - interpolate https://github.com/acids-ircam/ddsp_pytorch/tree/master by caillonantoine
 def upsample(signal, factor):
     signal = signal.permute(0, 2, 1)
     signal = nn.functional.interpolate(signal, size=signal.shape[-1] * factor)
     return signal.permute(0, 2, 1)
+
+
+
+#############################################################
+##############  DATA LOADING AND MANIPULATION  ##############
+#############################################################
+
+### Data manipulation helpers ###
+
+def round_down(samples, multiple):
+    return multiple * math.floor(samples / multiple)
+
+
+def slice_audio(x, step):
+  slices = []
+  for i in range(step, len(x)+1, step):
+    slices += x[i-step:i].unsqueeze(0)
+  slices = torch.stack(slices)
+  return slices
 
 
 def CutAudioLen(track, sample_rate):
@@ -85,7 +80,7 @@ def NormaliseMels(MELS):
   return MELS_norm
 
 
-### Load data ###
+### Main data loader ###
 def LoadAudio(audio_dir, sample_rate):
   audio_tracks = os.listdir(audio_dir)
   Y = []
@@ -138,3 +133,62 @@ def train_val_dataset(dataset, val_split=0.25):
     return datasets
 
 
+def ReadCSV(csv):
+  csv_data = []
+  times = []
+
+  for line in csv.readlines():
+    line = line.rstrip('\n').split(',')
+    for i in range(len(line)):
+      line[i] = float(line[i])
+    csv_data.append(line[1])
+    times.append(line[0])
+
+  return csv_data, times
+
+
+##############################################################
+################  HARMONIC ENCODER HELPERS ###################
+##############################################################
+
+# transcribed from magenta's tensorflow implementation
+def exp_sigmoid(x, exponent=10.0, max_value=2.0, threshold=1e-7):
+  """Exponentiated Sigmoid pointwise nonlinearity.
+
+  Bounds input to [threshold, max_value] with slope given by exponent.
+"""
+  with torch.no_grad():
+    exponentiated = max_value * torch.sigmoid(x)**torch.log(torch.tensor(exponent)) + threshold
+  return exponentiated
+
+
+# transcribed from magenta's tensorflow implementation
+def get_harmonic_frequencies(f0):
+  """Create integer multiples of the fundamental frequency.
+
+  Args:
+    frequencies: Fundamental frequencies (Hz). Shape [batch_size, :, 1].
+    n_harmonics: Number of harmonics.
+
+  Returns:
+    harmonic_frequencies: Oscillator frequencies (Hz).
+      Shape [batch_size, :, n_harmonics].
+  """
+  f_ratios = torch.linspace(1.0, 100.0, 100)
+  f_ratios = f_ratios.unsqueeze(0).unsqueeze(0)
+  harmonic_frequencies = f0 * f_ratios
+  return harmonic_frequencies
+
+
+# transcribed from magenta's tensorflow implementation
+def remove_above_nyquist(harmonics, cn, sr=16000):
+    condition = torch.ge(harmonics, sr/2)
+    cn = torch.where(condition, torch.zeros_like(cn), cn)
+    return cn
+
+
+# transcribed from magenta's tensorflow implementation
+def safe_divide(numerator, denominator, eps=1e-7):
+  """Avoid dividing by zero by adding a small epsilon."""
+  safe_denominator = torch.where(denominator == 0.0, eps, denominator)
+  return numerator / safe_denominator
