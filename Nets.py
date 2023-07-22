@@ -230,9 +230,9 @@ class SinMapToFrequency(nn.Module):
 
     frequency = self.frequency_dense(out)
     frequency = rearrange(frequency, 'b t (k f) -> b t k f', f=64)
-    with torch.no_grad():
-       frequency = self.softmax(frequency)
-       frequency = torch.sum(frequency * self.scale, dim=-1)
+    #with torch.no_grad():
+    frequency = self.softmax(frequency)
+    frequency = torch.sum(frequency * self.scale, dim=-1)
 
     amplitude = self.amplitude_dense(out)
     amplitude = self.amp_scale(amplitude)
@@ -251,7 +251,7 @@ class SinToHarmEncoder(nn.Module):
     self.layer_norm = nn.LayerNorm(256)#dunno
     self.leaky_relu = nn.LeakyReLU()
     self.gru = nn.GRU(256, hidden_size=512, num_layers=1, batch_first=True)
-    self.harm_amp_out = nn.Linear(256, 1) #1 harmonic amplitude per timestep
+    self.glob_amp_out = nn.Linear(256, 1) #1 harmonic amplitude per timestep
     self.cn_out = nn.Linear(256, 100) #harmonic distribution of amplitudes, so one for each sinusoid, and there are 100 sinusoids
     self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic
     self.f0_out = nn.Linear(256, 64) #there is a distribution of 64 bins for the possible fundamental frequency
@@ -259,7 +259,8 @@ class SinToHarmEncoder(nn.Module):
     self.softmax = nn.Softmax(dim=2)
     self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
 
-  def forward(self, x):
+  def forward(self, sins, amps):
+    x = torch.cat((sins, amps), -1)
     out = self.dense1(x)
     out = self.layer_norm(out)
     out = self.leaky_relu(out)
@@ -271,17 +272,22 @@ class SinToHarmEncoder(nn.Module):
     out = self.leaky_relu(out)
 
     #Individual dense layers
-    harm_amp = self.harm_amp_out(out)
+    glob_amp = self.glob_amp_out(out)
     cn = self.cn_out(out)
     f0 = self.f0_out(out)
-    damping = self.damping_out(out)
+    harm_damp = self.damping_out(out)
 
     #Scaling
-    harm_amp = self.amp_scale(harm_amp)
+    glob_amp = self.amp_scale(glob_amp)
     cn = self.amp_scale(cn)
-    damping = self.amp_scale(damping)
-    with torch.no_grad():
-      f0 = self.softmax(f0)
-      f0 = torch.sum(f0 * self.freq_scale, dim=-1, keepdim=True)
+    harm_damp = self.amp_scale(harm_damp)
 
-    return harm_amp, cn, f0, damping
+    f0 = self.softmax(f0)
+    f0 = torch.sum(f0 * self.freq_scale, dim=-1, keepdim=True)
+
+    harmonics = h.get_harmonic_frequencies(f0) #need this to then do the sin synth - creates a bank of 100 sinusoids
+    cn = h.remove_above_nyquist(harmonics, cn) #only keep the frequencies which are below the nyquist criterion, set amplitudes of other freqs to 0
+    cn = h.safe_divide(cn, torch.sum(cn, dim=-1, keepdim=True)) #normalise
+    harm_amps = glob_amp * cn
+
+    return harmonics, harm_amps, harm_damp
