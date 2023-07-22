@@ -176,8 +176,7 @@ def exp_sigmoid(x, exponent=10.0, max_value=2.0, threshold=1e-7):
 
   Bounds input to [threshold, max_value] with slope given by exponent.
 """
-  with torch.no_grad():
-    exponentiated = max_value * torch.sigmoid(x)**torch.log(torch.tensor(exponent)) + threshold
+  exponentiated = max_value * torch.sigmoid(x)**torch.log(torch.tensor(exponent)) + threshold
   return exponentiated
 
 

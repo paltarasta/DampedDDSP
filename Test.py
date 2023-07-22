@@ -35,7 +35,7 @@ amplitudes = h.UpsampleTime(amplitudes)
 signal = s.sinusoidal_synth(harmonics, amplitudes, 16000)
 plt.plot(signal.squeeze())
 plt.show()'''
-
+print('start')
 sin_encoder = n.SinMapToFrequency()
 harm_encoder = n.SinToHarmEncoder()
 
@@ -43,22 +43,23 @@ inputs = torch.rand(1,1,126,229)
 #Sinusoisal encoder
 sins, amps = sin_encoder(inputs)
 
+print('post sin encoder')
+
 #Sinusoidal synthesiser
 #damped_signal = damped_synth(sins, amps, damps, 16000)
 sin_signal = s.sinusoidal_synth(sins, amps, 16000)
 sin_signal = rearrange(sin_signal, 'a b c -> a c b')
+print('post sin synth')
 
 #First reconstruction loss
 #sin_recon_loss = criterion(sin_signal.to(device), targets.unsqueeze(0).to(device))
 
 #Harmonic encoder
-harm_input = torch.cat((sins, amps), -1)
-global_amps, amp_coeffs, f0s, harm_damps = harm_encoder(harm_input)
-
-harmonics = h.get_harmonic_frequencies(f0s) #need this to then do the sin synth - creates a bank of 100 sinusoids
-amp_coeffs = h.remove_above_nyquist(harmonics, amp_coeffs) #only keep the frequencies which are below the nyquist criterion, set amplitudes of other freqs to 0
-amp_coeffs = h.safe_divide(amp_coeffs, torch.sum(amp_coeffs, dim=-1, keepdim=True)) #normalise
-harm_amps = global_amps * amp_coeffs
+sins = sins.detach() #detach gradients before they go into the harmonic encoder
+amps = amps.detach()
+harmonics, harm_amps, harm_damps = harm_encoder(sins, amps)
+print('post harm encoder')
 
 #harm_signal = damped_synth(harmonics, harm_amps, harm_damps, 16000)
 harm_signal = s.sinusoidal_synth(harmonics, harm_amps, 16000)
+print('finish')
