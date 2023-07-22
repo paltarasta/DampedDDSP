@@ -4,7 +4,7 @@ import Helpers as h
 import Nets as n
 import auraloss as al
 from tqdm import tqdm
-from Synths import damped_synth
+from Synths import damped_synth, sinusoidal_synth
 from einops import rearrange
 import matplotlib.pyplot as plt
 import os
@@ -27,44 +27,63 @@ if __name__ == "__main__":
 
 
   ### Training Loop ###
-  model = n.MapToFrequency()
-  model = model.cuda()
+  sin_encoder = n.SinMapToFrequency()
+  sin_encoder = sin_encoder.cuda()
   criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512]).cuda()
-  optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+  optimizer = torch.optim.Adam(sin_encoder.parameters(), lr=0.001)
 
+  harm_encoder = n.SinToHarmEncoder()
+  harm_encoder = harm_encoder.cuda()
   # Training loop
   num_epochs = 1000
 
   average_loss = []
+  i = 0
 
   for epoch in range(num_epochs):
     with tqdm(DL_DS['train'], unit='batch') as tepoch:
       print('Epoch', epoch)
       running_loss = []
       for inputs, targets in tepoch:
+        if i > 1:
+          break
+        
+        #Sinusoisal encoder
+        sins, amps, damps = sin_encoder(inputs)
 
-        f, a, d = model(inputs)
+        #Sinusoidal synthesiser
+        #damped_signal = damped_synth(sins, amps, damps, 16000)
+        sin_signal = sinusoidal_synth(sins, amps, 16000)
+        sin_signal = rearrange(sin_signal, 'a b c -> a c b')
 
-        f_upsampled = h.UpsampleTime(f)
-        a_upsampled = h.UpsampleTime(a)
-        d_upsampled = h.UpsampleTime(d)
+        #First reconstruction loss
+        sin_recon_loss = criterion(sin_signal.to(device), targets.unsqueeze(0).to(device))
+        
+        #Harmonic encoder
+        harm_input = torch.cat((sins, amps, damps), -1)
+        global_amps, amp_coeffs, f0s, harm_damps = harm_encoder(harm_input)
 
-        prediction = damped_synth(f_upsampled, a_upsampled, d_upsampled, 16000)
-        prediction = rearrange(prediction, 'a b c -> a c b')
+        harmonics = h.get_harmonic_frequencies(f0s) #need this to then do the sin synth - creates a bank of 100 sinusoids
+        amp_coeffs = h.remove_above_nyquist(harmonics, amp_coeffs) #only keep the frequencies which are below the nyquist criterion, set amplitudes of other freqs to 0
+        amp_coeffs = h.safe_divide(amp_coeffs, torch.sum(amp_coeffs, dim=-1, keepdim=True)) #normalise
+        harm_amps = global_amps * amp_coeffs
 
-        loss = criterion(prediction.to(device), targets.unsqueeze(0).to(device))
-
+        #harm_signal = damped_synth(harmonics, harm_amps, harm_damps, 16000)
+        harm_signal = sinusoidal_synth(harmonics, harm_amps, 16000)
+        
         optimizer.zero_grad()
-        loss.backward()
+        sin_recon_loss.backward()
         optimizer.step()
 
-        running_loss.append(loss.item())
-        tepoch.set_description_str(f"{epoch}, loss = {loss.item():.4f}", refresh=True)
+        running_loss.append(sin_recon_loss.item())
+        tepoch.set_description_str(f"{epoch}, loss = {sin_recon_loss.item():.4f}", refresh=True)
+
+        i += 1
 
       average_loss.append(sum(running_loss)/len(running_loss))
 
       print('AVERAGE LOSS', average_loss[epoch-1])
-  torch.save(model.state_dict(), 'damped_weights.pt')
+  torch.save(sin_encoder.state_dict(), 'damped_weights.pt')
   #print('LOSS', running_loss)
   plt.plot(running_loss)
   plt.show()

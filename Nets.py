@@ -172,6 +172,7 @@ class SimpleResNet(nn.Module):
     
 
 class MapToFrequency(nn.Module):
+  #Takes in a log scaled mel spec and outputs parameters which drive the damped sinusoidal synthesiser
 
   def __init__(self):
 
@@ -182,6 +183,7 @@ class MapToFrequency(nn.Module):
     self.frequency_dense = nn.Linear(9*1024, 100*64)
     self.amplitude_dense = nn.Linear(9*1024, 100)
     self.damping_dense = nn.Linear(9*1024, 100)
+    self.amp_scale = h.exp_sigmoid
     self.register_buffer("scale", torch.logspace(np.log2(20), np.log2(8000), 64, base=2.0))
     self.softmax = nn.Softmax(dim=2)
 
@@ -196,21 +198,55 @@ class MapToFrequency(nn.Module):
     frequency = torch.sum(frequency * self.scale, dim=-1)
 
     amplitude = self.amplitude_dense(out)
-    amplitude = self.softmax(amplitude)
+    amplitude = self.amp_scale(amplitude)
     amplitude = amplitude.squeeze(-1)
 
     damping = self.damping_dense(out)
-    damping = self.softmax(damping)
+    damping = self.amp_scale(damping)
     damping = damping.squeeze(-1)
 
     return frequency, amplitude, damping
+  
+
+class SinMapToFrequency(nn.Module):
+  #Takes in a log scaled mel spec and outputs parameters which drive the sinusoidal synthesiser
+
+  def __init__(self):
+
+    super(SinMapToFrequency, self).__init__()
+
+    #self.resnet = ResNet()
+    self.resnet = SimpleResNet()
+    self.frequency_dense = nn.Linear(9*1024, 100*64)
+    self.amplitude_dense = nn.Linear(9*1024, 100)
+    self.amp_scale = h.exp_sigmoid
+    self.register_buffer("scale", torch.logspace(np.log2(20), np.log2(8000), 64, base=2.0))
+    self.softmax = nn.Softmax(dim=2)
+
+  def forward(self, x):
+    out = self.resnet(x)
+    out = rearrange(out, 'z a b c -> z b c a')
+    out = torch.reshape(out, (out.shape[0], 126, 9*1024))
+
+    frequency = self.frequency_dense(out)
+    frequency = rearrange(frequency, 'b t (k f) -> b t k f', f=64)
+    with torch.no_grad():
+       frequency = self.softmax(frequency)
+       frequency = torch.sum(frequency * self.scale, dim=-1)
+
+    amplitude = self.amplitude_dense(out)
+    amplitude = self.amp_scale(amplitude)
+    amplitude = amplitude.squeeze(-1)
+
+    return frequency, amplitude
 
 
 ### Sinusoidal to harmonic encoder ###
 class SinToHarmEncoder(nn.Module):
+
   def __init__(self):
     super(SinToHarmEncoder, self).__init__()
-    self.dense1 = nn.Linear(200, 256)
+    self.dense1 = nn.Linear(200, 256) # if sinusoidal; if damped, then 200 becomes 300
     self.dense2 = nn.Linear(512, 256)
     self.layer_norm = nn.LayerNorm(256)#dunno
     self.leaky_relu = nn.LeakyReLU()
