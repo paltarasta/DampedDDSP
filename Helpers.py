@@ -152,6 +152,25 @@ def ReadCSV(csv):
 ##############################################################
 
 # transcribed from magenta's tensorflow implementation
+def hz_to_midi(hz):
+  print('deeper', type(hz))
+  notes = 12 * (torch.log2(hz) - torch.log2(torch.tensor(440.0))) + 69.0
+  condition = torch.le(hz, 0.0)
+  notes = torch.where(condition, 0.0, notes)
+  return notes
+
+
+# transcribed from magenta's tensorflow implementation
+def unit_scale_hz(hz, hz_min=torch.tensor(0.0), hz_max=torch.tensor(8000)): #hz_maz is 8000 because we're using sr=16000, and Nyquist states max f can be only sr/2
+  print(type(hz))
+  midi_notes = hz_to_midi(hz)
+  midi_min = hz_to_midi(hz_min)
+  midi_max = hz_to_midi(hz_max)
+  unit = (midi_notes - midi_min) / (midi_max - midi_min)
+  return unit
+
+
+# transcribed from magenta's tensorflow implementation
 def exp_sigmoid(x, exponent=10.0, max_value=2.0, threshold=1e-7):
   """Exponentiated Sigmoid pointwise nonlinearity.
 
