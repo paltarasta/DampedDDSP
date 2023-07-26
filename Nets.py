@@ -215,8 +215,8 @@ class SinMapToFrequency(nn.Module):
 
     super(SinMapToFrequency, self).__init__()
 
-    #self.resnet = ResNet()
-    self.resnet = SimpleResNet()
+    self.resnet = ResNet()
+    #self.resnet = SimpleResNet()
     self.frequency_dense = nn.Linear(9*1024, 100*64)
     self.amplitude_dense = nn.Linear(9*1024, 100)
     self.amp_scale = h.exp_sigmoid
