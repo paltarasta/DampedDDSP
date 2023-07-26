@@ -1,65 +1,69 @@
 import torch
+import torch.nn as nn
 import Helpers as h
 import Nets as n
 import Synths as s
 import matplotlib.pyplot as plt
 from einops import rearrange
-'''
-test = torch.rand(1,126,100)
-test2 = torch.rand(1,126,100)
-test2 = h.unit_scale_hz(test2)
-comb = torch.cat((test, test2), -1)
+import Losses as l
+import auraloss as al
 
-
-model = n.SinToHarmEncoder()
-harm_a, c, f0, d = model(comb)
-#print(harm_a.shape, c.shape, f0.shape)
-
-harmonics = h.get_harmonic_frequencies(f0) #need this to then do the sin synth - creates a bank of 100 sinusoids
-
-cn = h.remove_above_nyquist(harmonics, c) #only keep the frequencies which are below the nyquist criterion, set amplitudes of other freqs to 0
-cn = h.safe_divide(cn, torch.sum(cn, dim=-1, keepdim=True)) #normalise
-print('cn', cn.shape)
-#End of encoder as in magenta
-
-
-#Synth
-amplitudes = harm_a * cn
-print(amplitudes.shape)
-print(harmonics.shape)
-#Then using harm_a, cn, f0 it is possible to generate a harmonic sound. But you don't need this to continue DDSP-inv
-#Use the sinusoidal synthesiser to generate audio
-harmonics = h.UpsampleTime(harmonics)
-amplitudes = h.UpsampleTime(amplitudes)
-
-signal = s.sinusoidal_synth(harmonics, amplitudes, 16000)
-plt.plot(signal.squeeze())
-plt.show()'''
 print('start')
 sin_encoder = n.SinMapToFrequency()
 harm_encoder = n.SinToHarmEncoder()
 
-inputs = torch.rand(1,1,126,229)
-#Sinusoisal encoder
-sins, amps = sin_encoder(inputs)
+sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
+harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
 
-print('post sin encoder')
+params = list(sin_encoder.parameters()) + list(harm_encoder.parameters())
+optimizer = torch.optim.Adam(params, lr=0.03)
 
-#Sinusoidal synthesiser
-#damped_signal = damped_synth(sins, amps, damps, 16000)
-sin_signal = s.sinusoidal_synth(sins, amps, 16000)
-sin_signal = rearrange(sin_signal, 'a b c -> a c b')
-print('post sin synth')
+print('model stats')
+h.print_model_stats(harm_encoder)
 
-#First reconstruction loss
-#sin_recon_loss = criterion(sin_signal.to(device), targets.unsqueeze(0).to(device))
+inputs = torch.rand(4,1,126,229)
+targets = torch.rand(4, 1, 4000)
 
-#Harmonic encoder
-sins = sins.detach() #detach gradients before they go into the harmonic encoder
-amps = amps.detach()
-harmonics, harm_amps, harm_damps = harm_encoder(sins, amps)
-print('post harm encoder')
+for i in range(4):
+    #Sinusoisal encoder
 
-#harm_signal = damped_synth(harmonics, harm_amps, harm_damps, 16000)
-harm_signal = s.sinusoidal_synth(harmonics, harm_amps, 16000)
-print('finish')
+    sins, amps = sin_encoder(inputs[i].unsqueeze(0))
+
+    print('post sin encoder')
+
+    #Sinusoidal synthesiser
+    #damped_signal = damped_synth(sins, amps, damps, 16000)
+    sin_signal = s.sinusoidal_synth(sins, amps, 16000)
+    sin_signal = rearrange(sin_signal, 'a b c -> a c b')
+    print('post sin synth')
+
+    #First reconstruction loss
+    sin_recon_loss = sin_criterion(sin_signal, targets[i].unsqueeze(0))
+
+    #Harmonic encoder
+    sins = sins.detach() #detach gradients before they go into the harmonic encoder
+    amps = amps.detach()
+
+    harmonics, harm_amps, harm_damps = harm_encoder(sins, amps)
+    print('post harm encoder')
+
+    #harm_signal = damped_synth(harmonics, harm_amps, harm_damps, 16000)
+    harm_signal = s.sinusoidal_synth(harmonics, harm_amps, 16000)
+    harm_signal = rearrange(harm_signal, 'a b c -> a c b')
+    
+    #Second reconstruction loss
+    harm_recon_loss = harm_criterion(harm_signal, targets[i].unsqueeze(0))
+    print('post harm loss')
+
+    consistency_loss = l.KDEConsistencyLoss(harm_amps, harmonics, amps, sins)
+    print('consistency loss', consistency_loss)
+    
+    total_loss = sin_recon_loss + harm_recon_loss + consistency_loss
+    print('after losses all summed', total_loss)
+    
+    print('starting backwards')
+    optimizer.zero_grad()
+    total_loss.backward()
+    print('backwards done')
+    optimizer.step()
+    print('finished')

@@ -153,7 +153,6 @@ def ReadCSV(csv):
 
 # transcribed from magenta's tensorflow implementation
 def hz_to_midi(hz):
-  print('deeper', type(hz))
   notes = 12 * (torch.log2(hz) - torch.log2(torch.tensor(440.0))) + 69.0
   condition = torch.le(hz, 0.0)
   notes = torch.where(condition, 0.0, notes)
@@ -210,3 +209,9 @@ def safe_divide(numerator, denominator, eps=1e-7):
   """Avoid dividing by zero by adding a small epsilon."""
   safe_denominator = torch.where(denominator == 0.0, eps, denominator)
   return numerator / safe_denominator
+
+
+#From Mohammed Ataaur Rahman
+def print_model_stats(model):
+
+    print(f"Model parameters: {sum([param.nelement() for param in model.parameters()])}")
