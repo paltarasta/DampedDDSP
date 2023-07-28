@@ -17,6 +17,6 @@ MELS_norm, Y = h.LoadAudio(audio_dir, 16000)
 
 print(Y.shape)
 print(MELS_norm.shape)
-
+'''
 torch.save(MELS_norm, 'meltensor.pt')
-torch.save(Y, 'y.pt')
+torch.save(Y, 'y.pt')'''
