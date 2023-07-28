@@ -14,28 +14,31 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #print(f"Running on device: {device}")
 
+#pretraining
+
 ### Load tensors and create dataloader ###
-MELS_norm = torch.load('meltensor.pt')
-Y = torch.load('y.pt')
+MELS_norm = torch.load('melsynth.pt')
+Y = torch.load('ysynth.pt')
 
 if __name__ == "__main__":
   myDataset = h.CustomDataset(MELS_norm, Y)
   datasets = h.train_val_dataset(myDataset)
-  print(len(datasets['train']))
-  print(len(datasets['val']))
+  print('Train', len(datasets['train']))
+  print('Val', len(datasets['val']))
 
-  DL_DS = {x:DataLoader(datasets[x], 1, shuffle=True, num_workers=2) for x in ['train','val']}
+  DL_DS = {x:DataLoader(datasets[x], 8, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
 
 
   ### Training Loop ###
-  sin_encoder = n.SinMapToFrequency()
-  harm_encoder = n.SinToHarmEncoder()
+  sin_encoder = n.SinMapToFrequency()#.cuda()
+  harm_encoder = n.SinToHarmEncoder()#.cuda()
 
   sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
   harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
+  consistency_criterion = l.KDEConsistencyLoss#.cuda()
 
   params = list(sin_encoder.parameters()) + list(harm_encoder.parameters())
-  optimizer = torch.optim.Adam(params, lr=0.03)
+  optimizer = torch.optim.Adam(params, lr=0.0003)
   
   # Training loop
   num_epochs = 2
@@ -44,13 +47,19 @@ if __name__ == "__main__":
   i = 0
 
   for epoch in range(num_epochs):
+    
     with tqdm(DL_DS['train'], unit='batch') as tepoch:
       print('Epoch', epoch)
       running_loss = []
+
       for inputs, targets in tepoch:
         print(targets.shape, 'THE TARGETS SHAPE')
         print(inputs.shape, 'THE INPUTS SHAPE')
-        if i > 50:
+
+        #inputs = inputs.cuda()
+        #targets = targets.cuda()
+
+        if i > 2:
           break
             
         #Sinusoisal encoder
@@ -72,7 +81,7 @@ if __name__ == "__main__":
         sins = sins.detach() #detach gradients before they go into the harmonic encoder
         amps = amps.detach()
 
-        harmonics, harm_amps, harm_damps = harm_encoder(sins, amps)
+        harmonics, harm_amps = harm_encoder(sins, amps)
         print('post harm encoder')
 
         #harm_signal = damped_synth(harmonics, harm_amps, harm_damps, 16000)
@@ -83,7 +92,7 @@ if __name__ == "__main__":
         harm_recon_loss = harm_criterion(harm_signal, targets.unsqueeze(0))
         print('post harm loss')
 
-        consistency_loss = l.KDEConsistencyLoss(harm_amps, harmonics, amps, sins)
+        consistency_loss = consistency_criterion(harm_amps, harmonics, amps, sins)
         print('sin loss', sin_recon_loss)
         print('harm loss', harm_recon_loss)
         print('consistency loss', consistency_loss)
@@ -106,7 +115,9 @@ if __name__ == "__main__":
       #average_loss.append(sum(running_loss)/len(running_loss))
 
       #print('AVERAGE LOSS', average_loss[epoch-1])
-  torch.save(sin_encoder.state_dict(), 'sin_weights.pt')
+      # Save a checkpoint
+      torch.save(sin_encoder.state_dict(), f'sin_weights_{epoch}.pt')
+
   #print('LOSS', running_loss)
   #plt.plot(running_loss)
   #plt.show()

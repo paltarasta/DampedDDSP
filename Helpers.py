@@ -12,7 +12,7 @@ import os
 def UpsampleTime(x, fs=16000): #upsample time dimension after using encoders
   batch = x[:,0,0].shape[0]
   timesteps = x[0,:,0].shape[0]
-  upsampled_timesteps = 4000#fs
+  upsampled_timesteps = fs
   channels = x[0,0,:].shape[0]
   upsampled = torch.zeros((batch, upsampled_timesteps, channels))
 
@@ -64,10 +64,13 @@ def CutAudioLen(track, sample_rate):
     return x, audio_fs
 
 
-def MakeMelsTensor(sliced_x, audio_fs, mel_tensor,n_fft=128, hop=32, n_mels=229):
+def MakeMelsTensor(sliced_x, audio_fs, mel_tensor, is_synthetic,n_fft=128, hop=32, n_mels=229):
   for clip in sliced_x:
-    clip = np.array(clip)
-    mel = li.feature.melspectrogram(y=clip, sr=audio_fs, n_fft=n_fft, hop_length=hop, n_mels=n_mels)#n_fft=2048, hop_length=128, n_mels=229)
+    if is_synthetic == False:
+      clip = np.array(clip)
+    else:
+      clip = np.squeeze(clip)
+    mel = li.feature.melspectrogram(y=clip, sr=audio_fs, n_fft=2048, hop_length=128, n_mels=229)
     mel_db = torch.tensor(li.power_to_db(mel, ref=np.max)).T.unsqueeze(0) #channel, time, frequency
     mel_tensor += mel_db
   return mel_tensor
@@ -87,18 +90,18 @@ def LoadAudio(audio_dir, sample_rate):
   X = []
   MELS = []
   for idx, track in enumerate(audio_tracks):
-    if idx > 15:
+    if idx > 3:#0:
       break
     audio_path = audio_dir + track
     print('INDEX', idx)
     x, audio_fs = CutAudioLen(audio_path, sample_rate)
     
-    step = audio_fs//4
+    step = audio_fs
     sliced_x = slice_audio(x, step) #slice the audio into 16000 sample long sections
     X += sliced_x
 
     ### to mel specs ###
-    MELS = MakeMelsTensor(sliced_x, audio_fs, MELS)
+    MELS = MakeMelsTensor(sliced_x, audio_fs, MELS, False)
     
   # Stack
   MELS = torch.stack(MELS).unsqueeze(1)

@@ -253,13 +253,15 @@ class SinToHarmEncoder(nn.Module):
     self.gru = nn.GRU(256, hidden_size=512, num_layers=1, batch_first=True)
     self.glob_amp_out = nn.Linear(256, 1) #1 harmonic amplitude per timestep
     self.cn_out = nn.Linear(256, 100) #harmonic distribution of amplitudes, so one for each sinusoid, and there are 100 sinusoids
-    self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic
+    #self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic
     self.f0_out = nn.Linear(256, 64) #there is a distribution of 64 bins for the possible fundamental frequency
     self.amp_scale = h.exp_sigmoid
     self.softmax = nn.Softmax(dim=2)
     self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
 
+  #def forward(self, sins, amps, damps):
   def forward(self, sins, amps):
+    #x = torch.cat((sins, amps, damps), -1)
     x = torch.cat((sins, amps), -1)
     out = self.dense1(x)
     out = self.layer_norm(out)
@@ -275,12 +277,12 @@ class SinToHarmEncoder(nn.Module):
     glob_amp = self.glob_amp_out(out)
     cn = self.cn_out(out)
     f0 = self.f0_out(out)
-    harm_damp = self.damping_out(out)
+    #harm_damp = self.damping_out(out)
 
     #Scaling
     glob_amp = self.amp_scale(glob_amp)
     cn = self.amp_scale(cn)
-    harm_damp = self.amp_scale(harm_damp)
+    #harm_damp = self.amp_scale(harm_damp)
 
     f0 = self.softmax(f0)
     f0 = torch.sum(f0 * self.freq_scale, dim=-1, keepdim=True)
@@ -290,4 +292,4 @@ class SinToHarmEncoder(nn.Module):
     cn = h.safe_divide(cn, torch.sum(cn, dim=-1, keepdim=True)) #normalise
     harm_amps = glob_amp * cn
 
-    return harmonics, harm_amps, harm_damp
+    return harmonics, harm_amps
