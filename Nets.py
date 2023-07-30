@@ -287,9 +287,5 @@ class SinToHarmEncoder(nn.Module):
     f0 = self.softmax(f0)
     f0 = torch.sum(f0 * self.freq_scale, dim=-1, keepdim=True)
 
-    harmonics = h.get_harmonic_frequencies(f0) #need this to then do the sin synth - creates a bank of 100 sinusoids
-    cn = h.remove_above_nyquist(harmonics, cn) #only keep the frequencies which are below the nyquist criterion, set amplitudes of other freqs to 0
-    cn = h.safe_divide(cn, torch.sum(cn, dim=-1, keepdim=True)) #normalise
-    harm_amps = glob_amp * cn
-
-    return harmonics, harm_amps
+    return glob_amp, cn, f0 #harmonics is the equivalent of sin_freqs, a bank of sinusoids based on f0
+  

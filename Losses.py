@@ -126,6 +126,10 @@ def KDEConsistencyLoss(amps_a, freqs_a, amps_b, freqs_b):
     scale_a = 0.1
     scale_b = 0.1
 
+
+    print('KDE SHAPES')
+    print(amps_a.shape, freqs_a.shape, amps_b.shape, freqs_b.shape)
+
     if weight_a > 0: #why do we need the if statements?
         loss_a = nll(amps_a, freqs_a, amps_b, freqs_b, scale_b)
         loss += torch.mean(weight_a * loss_a)
@@ -139,3 +143,75 @@ def KDEConsistencyLoss(amps_a, freqs_a, amps_b, freqs_b):
         loss += weight_mean_amp * loss_mean_amp
     
     return loss
+
+
+#################################################################################################################
+######################################### Self - supervised loss ################################################
+#################################################################################################################
+
+def mean_difference(target, value, weights=None):
+
+    # Using L1 loss
+
+    difference = target - value
+    weights = 1.0 if weights is None else weights
+    loss = torch.mean(torch.abs(difference*weights))
+
+    return loss
+
+
+def amp_loss(amp, amp_target, weights=None):
+
+    loss = mean_difference(amp, amp_target, weights)
+
+    return loss
+
+
+def freq_loss(f_hz, f_hz_target, weights=None):
+
+    f_midi = h.hz_to_midi(f_hz)
+    f_midi_target = h.hz_to_midi(f_hz_target)
+
+    loss = mean_difference(f_midi, f_midi_target, weights)
+
+    return loss
+
+### Self_supervision loss Lss
+def HarmonicConsistencyLoss(glob_amp,
+                            glob_amp_target,
+                            harm_dist,
+                            harm_dist_target,
+                            f0_hz,
+                            f0_hz_target,
+                            sin_amps,
+                            sin_amps_target,
+                            sin_freqs,
+                            sin_freqs_target,
+                            amp_weight=10.0,
+                            dist_weight=100.0,
+                            f0_weight=1.0,
+                            sin_con_weight=0.1,
+                            amp_threshold=1e-4):
+    
+    # Mask loss where target audio is below threshold amplitude.
+    weights = (glob_amp_target >= amp_threshold).float()
+
+    # Harmonic amplitude
+    harm_amp_loss = amp_loss(glob_amp, glob_amp_target)
+    harm_amp_loss = amp_weight * harm_amp_loss
+
+    # Harmonic distribution
+    harm_dist_loss = amp_loss(harm_dist, harm_dist_target, weights=weights)
+    harm_dist_loss = dist_weight * harm_dist_loss
+
+    # Fundamental frequency
+    f0_hz_loss = freq_loss(f0_hz, f0_hz_target, weights=weights)
+    f0_hz_loss = f0_weight * f0_hz_loss
+
+    # Sinusoidal consistency
+    sin_con_loss = KDEConsistencyLoss(sin_amps, sin_freqs, sin_amps_target, sin_freqs_target)
+    sin_con_loss = sin_con_weight * sin_con_loss
+
+    SS_loss = harm_amp_loss + harm_dist_loss + f0_hz_loss + sin_con_loss
+
+    return SS_loss
