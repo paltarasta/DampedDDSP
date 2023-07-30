@@ -125,10 +125,40 @@ class CustomDataset(Dataset):
     x = self.mels[idx]
     return x, y
 
+### Create dataset class for synthetic data and controls ###
+class SyntheticDataset(Dataset):
+  def __init__(self,
+               mels,
+               audio_target,
+               harm_amp_target,
+               harm_dist_target,
+               f0_target,
+               sin_amps_target,
+               sin_freqs_target):
+    self.mels = mels
+    self.audio_target = audio_target
+    self.harm_amp_target = harm_amp_target
+    self.harm_dist_target = harm_dist_target
+    self.f0_target = f0_target
+    self.sin_amps_target = sin_amps_target
+    self.sin_freqs_target = sin_freqs_target
+
+  def __len__(self):
+    return len(self.audio_target)
+  
+  def __getitem__(self, idx):
+    mels = self.mels[idx]
+    audio_target = self.audio_target[idx]
+    harm_amp_target = self.harm_amp_target[idx]
+    harm_dist_target = self.harm_dist_target[idx]
+    f0_target = self.f0_target[idx]
+    sin_amps_target = self.sin_amps_target[idx]
+    sin_freqs_target = self.sin_freqs_target[idx]
+    return mels, audio_target, harm_amp_target, harm_dist_target, f0_target, sin_amps_target, sin_freqs_target
 
 ### Define a training testing split for the dataset ###
 #https://discuss.pytorch.org/t/how-to-split-dataset-into-test-and-validation-sets/33987/4 - Manpreet Singh (msminhas93) May '20
-def train_val_dataset(dataset, val_split=0.25):
+def train_val_dataset(dataset, val_split=0.20):
     train_idx, val_idx = train_test_split(list(range(len(dataset))), test_size=val_split)
     datasets = {}
     datasets['train'] = Subset(dataset, train_idx)
