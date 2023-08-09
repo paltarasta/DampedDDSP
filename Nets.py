@@ -63,7 +63,7 @@ class ResNet(nn.Module):
         self.conv = nn.Conv2d(1, 64, kernel_size=7, stride=(1,2), padding=3)
         self.maxpool = nn.MaxPool2d((1,3), stride=(1,2))
 
-        self.residual_block1 = ResidualBlock(64, 128, 126, 57, 1)
+        self.residual_block1 = ResidualBlock(64, 128, 126, 57, 1) #changing 126 to 125 for nice numbers later in the damping
         self.residual_block2 = ResidualBlock(128, 128, 126, 57, 1)
         self.residual_block3 = ResidualBlock(128, 256, 126, 57, 2)
         self.residual_block4 = ResidualBlock(256, 256, 126, 30, 1)
@@ -171,15 +171,15 @@ class SimpleResNet(nn.Module):
         return out
     
 
-class MapToFrequency(nn.Module):
+class DampingMapping(nn.Module):
   #Takes in a log scaled mel spec and outputs parameters which drive the damped sinusoidal synthesiser
 
   def __init__(self):
 
-    super(MapToFrequency, self).__init__()
+    super(DampingMapping, self).__init__()
 
-    #self.resnet = ResNet()
-    self.resnet = SimpleResNet()
+    self.resnet = ResNet()
+    #self.resnet = SimpleResNet()
     self.frequency_dense = nn.Linear(9*1024, 100*64)
     self.amplitude_dense = nn.Linear(9*1024, 100)
     self.damping_dense = nn.Linear(9*1024, 100)
@@ -190,7 +190,7 @@ class MapToFrequency(nn.Module):
   def forward(self, x):
     out = self.resnet(x)
     out = rearrange(out, 'z a b c -> z b c a')
-    out = torch.reshape(out, (out.shape[0], 126, 9*1024))
+    out = torch.reshape(out, (out.shape[0], 125, 9*1024))
 
     frequency = self.frequency_dense(out)
     frequency = rearrange(frequency, 'b t (k f) -> b t k f', f=64)

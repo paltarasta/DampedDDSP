@@ -6,7 +6,6 @@ import auraloss as al
 from tqdm import tqdm
 import Synths as s
 from einops import rearrange
-import matplotlib.pyplot as plt
 import os
 import Losses as l
 from torch.utils.tensorboard import SummaryWriter
@@ -17,21 +16,29 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #print(f"Running on device: {device}")
 
 #################################################################################################
-########################################## PRETRAINING ##########################################
+########################################## FINETUNING ##########################################
 #################################################################################################
 
 ### Load tensors and create dataloader ###
-MELS = torch.load('SavedTensors/melsynth.pt')
-Y = torch.load('SavedTensors/ysynth.pt')
-sin_amps_target = torch.load('SavedTensors/sin_amps.pt')
-sin_freqs_target = torch.load('SavedTensors/sin_freqs.pt')
-harm_amp_target = torch.load('SavedTensors/harm_amp.pt')
-harm_dist_target = torch.load('SavedTensors/harm_dist.pt')
-f0_hz_target = torch.load('SavedTensors/f0_hz.pt')
+MELS_synth = torch.load('SavedTensors/melsynth.pt')
+MELS_real = torch.load('SavedTensors/meltensor.pt')
+Y_synth = torch.load('SavedTensors/ysynth.pt')
+Y_real = torch.load('SavedTensors/y.pt').unsqueeze(1)
+print(MELS_synth.shape)
+print(MELS_real.shape)
+print(Y_synth.shape)
+print(Y_real.shape)
+
+MELS_synth, Y_synth = h.shufflerow(MELS_synth, Y_synth, 0)
+MELS_real, Y_real = h.shufflerow(MELS_real, Y_real, 0)
+
+MELS = torch.cat((MELS_synth[:7000], MELS_real[:7000]), dim=0)
+Y = torch.cat((Y_synth[:7000], Y_real[:7000]), dim=0)
+MELS, Y = h.shufflerow(MELS, Y, 0)
 
 if __name__ == "__main__":
-  synth_dataset = h.SyntheticDataset(MELS, Y, harm_amp_target, harm_dist_target, f0_hz_target, sin_amps_target, sin_freqs_target)
-  datasets = h.train_val_dataset(synth_dataset)
+  mixed_dataset = h.CustomDataset(MELS, Y)
+  datasets = h.train_val_dataset(mixed_dataset)
   print('Train', len(datasets['train']))
   print('Val', len(datasets['val']))
 
@@ -41,10 +48,13 @@ if __name__ == "__main__":
   sin_encoder = n.SinMapToFrequency()#.cuda()
   harm_encoder = n.SinToHarmEncoder()#.cuda()
 
+  ### Load pretrained weights ###
+  sin_encoder.load_state_dict(torch.load("Checkpoints\sin_encoder_ckpt_1.pt"))
+  harm_encoder.load_state_dict(torch.load("Checkpoints\harm_encoder_ckpt_1.pt"))
+
   sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
   harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
   consistency_criterion = l.KDEConsistencyLoss#.cuda()
-  self_supervision_criterion = l.HarmonicConsistencyLoss#.cuda()
 
   params = list(sin_encoder.parameters()) + list(harm_encoder.parameters())
   optimizer = torch.optim.Adam(params, lr=0.0003)
@@ -59,17 +69,12 @@ if __name__ == "__main__":
     with tqdm(DL_DS['train'], unit='batch') as tepoch:
       running_loss = []
 
-      for mels, audio, glob_amp_t, harm_dist_t, f0_hz_t, sin_amps_t, sin_freqs_t in tepoch:
+      for mels, audio in tepoch:
         print(audio.shape, 'THE TARGETS SHAPE')
         print(mels.shape, 'THE INPUTS SHAPE')
 
         #mels = mels.cuda()
         #audio = audio.cuda()
-        #harm_amp_t = harm_amp_t.cuda()
-        #harm_dist_t = harm_dist_t.cuda()
-        #f0_hz_t = f0_hz_t.cuda()
-        #sin_amps_t = sin_amps_t.cuda()
-        #sin_freqs_t = sin_freqs_t.cuda()
 
         if i > 4:
           break
@@ -111,22 +116,8 @@ if __name__ == "__main__":
         print('harm loss', harm_recon_loss)
         print('consistency loss', consistency_loss)
 
-        #Self-supervision loss
-        ss_loss = self_supervision_criterion(glob_amp,
-                                             glob_amp_t,
-                                             harm_dist,
-                                             harm_dist_t,
-                                             f0,
-                                             f0_hz_t,
-                                             sin_amps,
-                                             sin_amps_t,
-                                             sin_freqs,
-                                             sin_freqs_t
-                                             )
-        print('self supervision', ss_loss)
-
         #Total loss
-        total_loss = sin_recon_loss + harm_recon_loss + consistency_loss + ss_loss
+        total_loss = sin_recon_loss + harm_recon_loss + consistency_loss
         print('after losses all summed', total_loss, type(total_loss), total_loss.shape)
 
         writer.add_scalar('Loss/train', total_loss, i)
@@ -144,8 +135,8 @@ if __name__ == "__main__":
         i += 1
 
       # Save a checkpoint
-      torch.save(sin_encoder.state_dict(), f'sin_encoder_ckpt_{epoch}.pt')
-      torch.save(harm_encoder.state_dict(), f'harm_encoder_ckpt_{epoch}.pt')
+      torch.save(sin_encoder.state_dict(), f'Checkpoints/finetune_sin_encoder_ckpt_{epoch}.pt')
+      torch.save(harm_encoder.state_dict(), f'Checkpoints/finetune_harm_encoder_ckpt_{epoch}.pt')
 
   writer.flush()
   writer.close()
