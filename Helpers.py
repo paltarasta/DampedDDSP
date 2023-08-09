@@ -90,7 +90,7 @@ def LoadAudio(audio_dir, sample_rate):
   X = []
   MELS = []
   for idx, track in enumerate(audio_tracks):
-    if idx > 3:#0:
+    if idx > 200:
       break
     audio_path = audio_dir + track
     print('INDEX', idx)
@@ -178,6 +178,18 @@ def ReadCSV(csv):
     times.append(line[0])
 
   return csv_data, times
+
+### from here https://github.com/pytorch/pytorch/issues/71409
+def shufflerow(tensor1, tensor2, axis):
+    row_perm = torch.rand(tensor1.shape[:axis+1]).argsort(axis)  # get permutation indices
+    row_perm_2 = torch.clone(row_perm)
+    for _ in range(tensor1.ndim-axis-1): row_perm.unsqueeze_(-1)
+    for _ in range(tensor2.ndim-axis-1): row_perm_2.unsqueeze_(-1)
+    row_perm = row_perm.repeat(*[1 for _ in range(axis+1)], *(tensor1.shape[axis+1:]))  # reformat this for the gather operation
+    row_perm_2 = row_perm_2.repeat(*[1 for _ in range(axis+1)], *(tensor2.shape[axis+1:]))
+    tensor_a = tensor1.gather(axis, row_perm)
+    tensor_b = tensor2.gather(axis, row_perm_2)
+    return tensor_a, tensor_b
 
 
 ##############################################################
