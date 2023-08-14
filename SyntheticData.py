@@ -1,14 +1,11 @@
 import tensorflow as tf
-import os
 import torch
 from einops import rearrange
 import Synths as s
 import Helpers as h
-import matplotlib.pyplot as plt
 import numpy as np
-import sounddevice as sd
 
-filepath = "C:/Users/eat_m/Documents/QMUL/Summer_Project/Synthetic_data/synth_dataset-00000-of-00001"
+filepath = "C:/Users/eat_m/Documents/QMUL/Summer_Project/Synthetic_data/synth_dataset_125-00000-of-00001"
 
 #def parse_tfrecord(filepath):
 #    return [tf.train.Example.FromString(record.numpy()) for record in tf.data.TFRecordDataset(filepath)]
@@ -68,11 +65,11 @@ for raw_record in raw_dataset:
 
     # Reshape for further processing (batch x time x feature = 1 x 126 x 1 or 100)
     harm_amp_torch = rearrange(harm_amp_torch, '(a b) -> a b', b=1)
-    harm_dist_torch = rearrange(harm_dist_torch, '(a b) -> a b', a=126)
+    harm_dist_torch = rearrange(harm_dist_torch, '(a b) -> a b', a=125)
     f0_hz_torch = rearrange(f0_hz_torch, '(a b) -> a b', b=1).unsqueeze(0)
     amplitudes = (harm_amp_torch * harm_dist_torch).unsqueeze(0)
-    sin_amps_torch = rearrange(sin_amps_torch, '(a b) -> a b', a=126)
-    sin_freqs_torch = rearrange(sin_freqs_torch, '(a b) -> a b', a=126)
+    sin_amps_torch = rearrange(sin_amps_torch, '(a b) -> a b', a=125)
+    sin_freqs_torch = rearrange(sin_freqs_torch, '(a b) -> a b', a=125)
 
     sin_amps.append(sin_amps_torch)
     sin_freqs.append(sin_freqs_torch)
@@ -99,100 +96,25 @@ MELS_synth = torch.stack(MELS_synth).unsqueeze(1)
 #for the audio and mels, and for the controls it should be in batch, 126, 1 slash 100
 
 MELS_synth_norm = h.NormaliseMels(MELS_synth)
+MELS_synth_norm = MELS_synth_norm[:,:,:125, :]
 
 alpha = torch.tensor(np.array(alpha))
 alpha = rearrange(alpha, 'a b c -> a c b')
 
-sin_amps = torch.stack(sin_amps)
-sin_freqs = torch.stack(sin_freqs)
-harm_amp = torch.stack(harm_amp)
-harm_dist = torch.stack(harm_dist)
-f0_hz = torch.stack(f0_hz)
+#sin_amps = torch.stack(sin_amps)
+#sin_freqs = torch.stack(sin_freqs)
+#harm_amp = torch.stack(harm_amp)
+#harm_dist = torch.stack(harm_dist)
+#f0_hz = torch.stack(f0_hz)
 
-print('after stacking', MELS_synth_norm.shape, alpha.shape, sin_amps.shape, sin_freqs.shape, harm_amp.shape, harm_dist.shape, f0_hz.shape)
+print('after stacking', MELS_synth_norm.shape, alpha.shape)#, sin_amps.shape, sin_freqs.shape, harm_amp.shape, harm_dist.shape, f0_hz.shape)
 
-torch.save(MELS_synth_norm, 'SavedTensors/melsynth.pt')
-torch.save(alpha, 'SavedTensors/ysynth.pt')
-torch.save(sin_amps, 'SavedTensors/sin_amps.pt')
-torch.save(sin_freqs, 'SavedTensors/sin_freqs.pt')
-torch.save(harm_amp, 'SavedTensors/harm_amp.pt')
-torch.save(harm_dist, 'SavedTensors/harm_dist.pt')
-torch.save(f0_hz, 'SavedTensors/f0_hz.pt')
+torch.save(MELS_synth_norm, 'SavedTensors/melsynth_125.pt')
+torch.save(alpha, 'SavedTensors/ysynth_125.pt')
+#torch.save(sin_amps, 'SavedTensors/sin_amps.pt')
+#torch.save(sin_freqs, 'SavedTensors/sin_freqs.pt')
+#torch.save(harm_amp, 'SavedTensors/harm_amp.pt')
+#torch.save(harm_dist, 'SavedTensors/harm_dist.pt')
+#torch.save(f0_hz, 'SavedTensors/f0_hz.pt')
 
 print('all done!')
-
-
-#sd.play(alpha[1], samplerate=16000)
-#sd.wait()
-
-
-#plt.figure()
-#plt.plot(alpha[0])
-#plt.show()
-'''
-for raw_record in raw_dataset.take(1):
-    example = tf.train.Example()
-    example.ParseFromString(raw_record.numpy())
-    alpha.append(example)
-#print('alpha', type(alpha[0]))
-print('num examples as i see it', i)
-#print(alpha[0] == alpha[1])
-
-serialised_example = alpha[0].SerializeToString()
-#print(serialised_example)
-
-
-parsed_example = tf.io.parse_single_example(serialised_example, feature_description)
-
-# Convert the features to TensorFlow tensors or NumPy arrays
-harm_amp_tensor = parsed_example['harm_amp']
-harm_dist_tensor = parsed_example['harm_dist']
-f0_hz_tensor = parsed_example['f0_hz']
-sin_amps_tensor = parsed_example['sin_amps']
-sin_freqs_tensor = parsed_example['sin_freqs']
-noise_magnitudes_tensor = parsed_example['noise_magnitudes']
-
-
-print('########################################################################################')
-#print(harm_amp_tensor)
-# Convert to numpy array
-
-harm_amp_numpy = harm_amp_tensor.numpy()
-harm_dist_numpy = harm_dist_tensor.numpy()
-f0_hz_numpy = f0_hz_tensor.numpy()
-sin_amps_numpy = sin_amps_tensor.numpy()
-sin_freqs_numpy = sin_freqs_tensor.numpy()
-noise_magnitudes_numpy = noise_magnitudes_tensor.numpy()
-
-# Convert to torch tensor
-
-harm_amp_torch = torch.tensor(harm_amp_numpy)
-harm_dist_torch = torch.tensor(harm_dist_numpy)
-f0_hz_torch = torch.tensor(f0_hz_numpy)
-sin_amps_torch = torch.tensor(sin_amps_numpy)
-sin_freqs_torch = torch.tensor(sin_freqs_numpy)
-noise_magnitudes_torch = torch.tensor(noise_magnitudes_numpy)
-
-harm_amp_torch = rearrange(harm_amp_torch, '(a b) -> a b', b=1)
-print(harm_amp_torch.shape, type(harm_amp_torch))
-harm_dist_torch = rearrange(harm_dist_torch, '(a b) -> a b', a=126)
-print(harm_dist_torch.shape)
-f0_hz_torch = rearrange(f0_hz_torch, '(a b) -> a b', b=1).unsqueeze(0)
-print(f0_hz_torch.shape)
-
-amplitudes = (harm_amp_torch * harm_dist_torch).unsqueeze(0)
-print('amplitudes', amplitudes.shape)
-
-amplitudes = h.UpsampleTime(amplitudes)
-f0_hz_torch = h.UpsampleTime(f0_hz_torch)
-
-signal = s.harmonic_synth(f0_hz_torch, amplitudes, 16000).squeeze(0).numpy()
-print('signal', type(signal), signal.shape)
-
-### now check you can run this for multiple files
-### use the harmonic synth to generate a sound
-### check what it sounds like
-### create dataset
-sd.play(signal, samplerate=16000)
-sd.wait()
-'''

@@ -106,7 +106,7 @@ if __name__ == "__main__":
         print('post harm loss')
 
         #Consistency loss
-        consistency_loss = consistency_criterion(harm_amps, harmonics, sin_amps, sin_freqs)
+        consistency_loss = consistency_criterion(harm_amps, harmonics, sin_amps, sin_freqs) #do i need to include the damping here?
         print('sin loss', sin_recon_loss)
         print('harm loss', harm_recon_loss)
         print('consistency loss', consistency_loss)
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         print('self supervision', ss_loss)
 
         #Total loss
-        total_loss = sin_recon_loss + harm_recon_loss + consistency_loss + ss_loss
+        total_loss = sin_recon_loss + harm_recon_loss + (0.1 * consistency_loss) + ss_loss
         print('after losses all summed', total_loss, type(total_loss), total_loss.shape)
 
         writer.add_scalar('Loss/train', total_loss, i)

@@ -417,7 +417,7 @@ def random_harm_dist(n_harmonics=100, low_pass=True, rand_phase=0.0):
 
 @gin.configurable
 def generate_notes_v2(n_batch=2,
-                      n_timesteps=126,
+                      n_timesteps=125,
                       n_harmonics=100,
                       n_mags=65,
                       min_note_length=5,

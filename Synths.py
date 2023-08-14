@@ -4,22 +4,10 @@ import Helpers as h
 from einops import rearrange
 
 
-def damped_synth(pitches, amplitudes, damping, sampling_rate, factor):
-
+def damped_synth(pitches, amplitudes, damper, sampling_rate):
     assert pitches.shape[-1] == amplitudes.shape[-1]
-    
-    damping = rearrange(damping, 'a b c -> b a c')
-
-    indices = torch.arange(factor).unsqueeze(-1)
-
-    exponent = - damping.abs() * indices
-    exponent = rearrange(exponent, 'a b c -> (a b) c')
-    exponent = exponent.unsqueeze(0)
-
-    damper = torch.exp(exponent)
     omegas = torch.cumsum(2 * math.pi * pitches / sampling_rate, 1)
     signal = (torch.cos(omegas) * amplitudes * damper).sum(-1, keepdim=True)
-
     return signal
 
 
