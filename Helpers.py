@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils.data import Dataset, Subset
 from sklearn.model_selection import train_test_split
 import os
+from einops import rearrange
 
 #### Helper functions ####
 
@@ -36,6 +37,15 @@ def upsample(signal, factor):
     signal = nn.functional.interpolate(signal, size=signal.shape[-1] * factor)
     return signal.permute(0, 2, 1)
 
+
+def upsample_to_damper(damping, factor):
+    damping = rearrange(damping, 'a b c -> b a c')
+    indices = torch.arange(factor).unsqueeze(-1)
+    exponent = - damping.abs() * indices
+    exponent = rearrange(exponent, 'a b c -> (a b) c')
+    exponent = exponent.unsqueeze(0)
+    damper = torch.exp(exponent)
+    return damper
 
 
 #############################################################

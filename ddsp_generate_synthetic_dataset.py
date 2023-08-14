@@ -47,11 +47,11 @@ flags.DEFINE_string(
     'The prefix path to the output TFRecord. Shard numbers will be added to '
     'actual path(s).')
 flags.DEFINE_integer(
-    'num_shards', 2,
+    'num_shards', 1,
     'The number of shards to use for the TFRecord. If None, this number will '
     'be determined automatically.')
 flags.DEFINE_integer(
-    'num_examples', 3,
+    'num_examples', 50000,
     'The total number of synthetic examples to generate.')
 flags.DEFINE_integer(
     'random_seed', 42,
@@ -124,7 +124,7 @@ def run():
         | beam.Reshuffle()
         | beam.Map(_float_dict_to_tfexample)
         | beam.io.tfrecordio.WriteToTFRecord(
-            "C:/Users/eat_m/Documents/QMUL/Summer_Project/Synthetic_data/synth_dataset",
+            "C:/Users/eat_m/Documents/QMUL/Summer_Project/Synthetic_data/synth_dataset_125_50k",
             num_shards=FLAGS.num_shards,
             coder=beam.coders.ProtoCoder(tf.train.Example))
     )

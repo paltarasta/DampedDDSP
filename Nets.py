@@ -77,8 +77,10 @@ class ResNet(nn.Module):
         self.residual_block12 = ResidualBlock(1024, 1024, 126, 9, 1)
 
     def forward(self, x):
+        print('pre', x.shape)
         out = self.conv(x)
         out = self.maxpool(out)
+        print('post', out.shape)
 
         out = self.residual_block1(out)
         out = self.residual_block2(out)
@@ -253,7 +255,6 @@ class SinToHarmEncoder(nn.Module):
     self.gru = nn.GRU(256, hidden_size=512, num_layers=1, batch_first=True)
     self.glob_amp_out = nn.Linear(256, 1) #1 harmonic amplitude per timestep
     self.cn_out = nn.Linear(256, 100) #harmonic distribution of amplitudes, so one for each sinusoid, and there are 100 sinusoids
-    #self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic
     self.f0_out = nn.Linear(256, 64) #there is a distribution of 64 bins for the possible fundamental frequency
     self.amp_scale = h.exp_sigmoid
     self.softmax = nn.Softmax(dim=2)
@@ -261,7 +262,6 @@ class SinToHarmEncoder(nn.Module):
 
   #def forward(self, sins, amps, damps):
   def forward(self, sins, amps):
-    #x = torch.cat((sins, amps, damps), -1)
     x = torch.cat((sins, amps), -1)
     out = self.dense1(x)
     out = self.layer_norm(out)
@@ -277,7 +277,52 @@ class SinToHarmEncoder(nn.Module):
     glob_amp = self.glob_amp_out(out)
     cn = self.cn_out(out)
     f0 = self.f0_out(out)
-    #harm_damp = self.damping_out(out)
+
+    #Scaling
+    glob_amp = self.amp_scale(glob_amp)
+    cn = self.amp_scale(cn)
+
+    f0 = self.softmax(f0)
+    f0 = torch.sum(f0 * self.freq_scale, dim=-1, keepdim=True)
+
+    return glob_amp, cn, f0 #harmonics is the equivalent of sin_freqs, a bank of sinusoids based on f0
+  
+
+### Sinusoidal to harmonic encoder - damping version ###
+class DampSinToHarmEncoder(nn.Module):
+
+  def __init__(self):
+    super(DampSinToHarmEncoder, self).__init__()
+    self.dense1 = nn.Linear(300, 256) # if sinusoidal; if damped, then 200 becomes 300
+    self.dense2 = nn.Linear(512, 256)
+    self.layer_norm = nn.LayerNorm(256)#dunno
+    self.leaky_relu = nn.LeakyReLU()
+    self.gru = nn.GRU(256, hidden_size=512, num_layers=1, batch_first=True)
+    self.glob_amp_out = nn.Linear(256, 1) #1 harmonic amplitude per timestep
+    self.cn_out = nn.Linear(256, 100) #harmonic distribution of amplitudes, so one for each sinusoid, and there are 100 sinusoids
+    self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic
+    self.f0_out = nn.Linear(256, 64) #there is a distribution of 64 bins for the possible fundamental frequency
+    self.amp_scale = h.exp_sigmoid
+    self.softmax = nn.Softmax(dim=2)
+    self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
+
+  def forward(self, sins, amps, damps):
+    x = torch.cat((sins, amps, damps), -1)
+    out = self.dense1(x)
+    out = self.layer_norm(out)
+    out = self.leaky_relu(out)
+
+    out, hidden = self.gru(out)
+   
+    out = self.dense2(out)
+    out = self.layer_norm(out)
+    out = self.leaky_relu(out)
+
+    #Individual dense layers
+    glob_amp = self.glob_amp_out(out)
+    cn = self.cn_out(out)
+    f0 = self.f0_out(out)
+    #harm_damp = self.damping_out(out) #don't necessarily need damping to be output for the synth
 
     #Scaling
     glob_amp = self.amp_scale(glob_amp)
