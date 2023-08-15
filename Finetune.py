@@ -10,7 +10,7 @@ import os
 import Losses as l
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter()
+writer = SummaryWriter('bmktrainval')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #print(f"Running on device: {device}")
@@ -138,6 +138,49 @@ if __name__ == "__main__":
       # Save a checkpoint
       torch.save(sin_encoder.state_dict(), f'Checkpoints/finetune_sin_encoder_ckpt_{epoch}.pt')
       torch.save(harm_encoder.state_dict(), f'Checkpoints/finetune_harm_encoder_ckpt_{epoch}.pt')
+    
+    with torch.no_grad():
+      val_loss = []
+
+      for mels_val, audio_val in DL_DS['val']:
+        #mels_val = mels_val.cuda()
+        #audio_val = audio_val.cuda()
+
+        #Sinusoisal encoder
+        sin_freqs_val, sin_amps_val = sin_encoder(mels_val)
+
+        #Sinusoidal synthesiser
+        sin_signal_val = s.sinusoidal_synth(sin_freqs_val, sin_amps_val, 16000)
+        sin_signal_val = rearrange(sin_signal_val, 'a b c -> a c b')
+
+        #Sinusoidal reconstruction loss
+        sin_recon_loss_val = sin_criterion(sin_signal_val, audio_val.unsqueeze(0))
+
+        #Harmonic encoder
+        sin_freqs_val = sin_freqs_val.detach() #detach gradients before they go into the harmonic encoder
+        sin_amps_val = sin_amps_val.detach()
+        glob_amp_val, harm_dist_val, f0_val = harm_encoder(sin_freqs_val, sin_amps_val)
+
+        #Reconstruct audio from harmonic encoder results
+        harmonics_val = h.get_harmonic_frequencies(f0_val) #need this to then do the sin synth - creates a bank of 100 sinusoids
+        harm_dist_val = h.remove_above_nyquist(harmonics_val, harm_dist_val) #only keep the frequencies which are below the nyquist criterion, set amplitudes of other freqs to 0
+        harm_dist_val = h.safe_divide(harm_dist_val, torch.sum(harm_dist_val, dim=-1, keepdim=True)) #normalise
+        harm_amps_val = glob_amp_val * harm_dist_val
+
+        harm_signal_val = s.sinusoidal_synth(harmonics_val, harm_amps_val, 16000)
+        harm_signal_val = rearrange(harm_signal_val, 'a b c -> a c b')
+
+        #Harmonic reconstruction loss
+        harm_recon_loss_val = harm_criterion(harm_signal_val, audio_val.unsqueeze(0))
+
+        #Consistency loss
+        consistency_loss_val = consistency_criterion(harm_amps_val, harmonics_val, sin_amps_val, sin_freqs_val)
+
+        #Total loss
+        total_loss_val = sin_recon_loss_val + harm_recon_loss_val + (0.1 * consistency_loss_val)
+
+        writer.add_scalar('Loss/val', total_loss_val, i)
+        val_loss.append(total_loss_val.item())
 
   writer.flush()
   writer.close()

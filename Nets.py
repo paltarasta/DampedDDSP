@@ -63,24 +63,22 @@ class ResNet(nn.Module):
         self.conv = nn.Conv2d(1, 64, kernel_size=7, stride=(1,2), padding=3)
         self.maxpool = nn.MaxPool2d((1,3), stride=(1,2))
 
-        self.residual_block1 = ResidualBlock(64, 128, 126, 57, 1) #changing 126 to 125 for nice numbers later in the damping
-        self.residual_block2 = ResidualBlock(128, 128, 126, 57, 1)
-        self.residual_block3 = ResidualBlock(128, 256, 126, 57, 2)
-        self.residual_block4 = ResidualBlock(256, 256, 126, 30, 1)
-        self.residual_block5 = ResidualBlock(256, 256, 126, 30, 1)
-        self.residual_block6 = ResidualBlock(256, 512, 126, 30, 2)
-        self.residual_block7 = ResidualBlock(512, 512, 126, 16, 1)
-        self.residual_block8 = ResidualBlock(512, 512, 126, 16, 1)
-        self.residual_block9 = ResidualBlock(512, 512, 126, 16, 1)
-        self.residual_block10 = ResidualBlock(512, 1024, 126, 16, 2)
-        self.residual_block11 = ResidualBlock(1024, 1024, 126, 9, 1)
-        self.residual_block12 = ResidualBlock(1024, 1024, 126, 9, 1)
+        self.residual_block1 = ResidualBlock(64, 128, 125, 57, 1) #changing 126 to 125 for nice numbers later in the damping
+        self.residual_block2 = ResidualBlock(128, 128, 125, 57, 1)
+        self.residual_block3 = ResidualBlock(128, 256, 125, 57, 2)
+        self.residual_block4 = ResidualBlock(256, 256, 125, 30, 1)
+        self.residual_block5 = ResidualBlock(256, 256, 125, 30, 1)
+        self.residual_block6 = ResidualBlock(256, 512, 125, 30, 2)
+        self.residual_block7 = ResidualBlock(512, 512, 125, 16, 1)
+        self.residual_block8 = ResidualBlock(512, 512, 125, 16, 1)
+        self.residual_block9 = ResidualBlock(512, 512, 125, 16, 1)
+        self.residual_block10 = ResidualBlock(512, 1024, 125, 16, 2)
+        self.residual_block11 = ResidualBlock(1024, 1024, 125, 9, 1)
+        self.residual_block12 = ResidualBlock(1024, 1024, 125, 9, 1)
 
     def forward(self, x):
-        print('pre', x.shape)
         out = self.conv(x)
         out = self.maxpool(out)
-        print('post', out.shape)
 
         out = self.residual_block1(out)
         out = self.residual_block2(out)
