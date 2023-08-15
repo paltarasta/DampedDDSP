@@ -58,6 +58,19 @@ def round_down(samples, multiple):
     return multiple * math.floor(samples / multiple)
 
 
+def ReadCSV(csv):
+  csv_data = []
+  times = []
+
+  for line in csv.readlines():
+    line = line.rstrip('\n').split(',')
+    for i in range(len(line)):
+      line[i] = float(line[i])
+    csv_data.append(line[1])
+    times.append(line[0])
+
+  return csv_data, times
+
 def slice_audio(x, step):
   slices = []
   for i in range(step, len(x)+1, step):
@@ -94,16 +107,20 @@ def NormaliseMels(MELS):
 
 
 ### Main data loader ###
-def LoadAudio(audio_dir, sample_rate):
+def LoadAudio(audio_dir, annotation_dir, sample_rate):
   audio_tracks = os.listdir(audio_dir)
   Y = []
   X = []
   MELS = []
+  ANNOTS = []
+  
   for idx, track in enumerate(audio_tracks):
     if idx > 200:
       break
     audio_path = audio_dir + track
+    annotation_path = annotation_dir + track.strip('wav') + 'csv'
     print('INDEX', idx)
+
     x, audio_fs = CutAudioLen(audio_path, sample_rate)
     
     step = audio_fs
@@ -113,14 +130,25 @@ def LoadAudio(audio_dir, sample_rate):
     ### to mel specs ###
     MELS = MakeMelsTensor(sliced_x, audio_fs, MELS, False)
     
+    ### annotations ###
+    file = open(annotation_path, 'r')
+    csv_data, times = ReadCSV(file)
+    csv_fs = len(csv_data)/times[-1]
+    csv_data = np.array(csv_data)
+    upsampled_csv_data = torch.tensor(li.resample(csv_data, orig_sr=csv_fs, target_sr=audio_fs))
+    upsampled_csv_data = upsampled_csv_data[:len(x)]
+    sliced_csv_data = slice_audio(upsampled_csv_data, step)
+    ANNOTS += sliced_csv_data
+    
   # Stack
   MELS = torch.stack(MELS).unsqueeze(1)
   Y = torch.stack(X)
+  ANNOTS = torch.stack(ANNOTS)
 
   ### Normalise the mel specs ###
   MELS_norm = NormaliseMels(MELS)
 
-  return MELS_norm, Y
+  return MELS_norm, Y, ANNOTS
 
 
 ### Create a custom dataset class ###
@@ -176,19 +204,6 @@ def train_val_dataset(dataset, val_split=0.20):
     return datasets
 
 
-def ReadCSV(csv):
-  csv_data = []
-  times = []
-
-  for line in csv.readlines():
-    line = line.rstrip('\n').split(',')
-    for i in range(len(line)):
-      line[i] = float(line[i])
-    csv_data.append(line[1])
-    times.append(line[0])
-
-  return csv_data, times
-
 ### from here https://github.com/pytorch/pytorch/issues/71409
 def shufflerow(tensor1, tensor2, axis):
     row_perm = torch.rand(tensor1.shape[:axis+1]).argsort(axis)  # get permutation indices
@@ -216,7 +231,6 @@ def hz_to_midi(hz):
 
 # transcribed from magenta's tensorflow implementation
 def unit_scale_hz(hz, hz_min=torch.tensor(0.0), hz_max=torch.tensor(8000)): #hz_maz is 8000 because we're using sr=16000, and Nyquist states max f can be only sr/2
-  print(type(hz))
   midi_notes = hz_to_midi(hz)
   midi_min = hz_to_midi(hz_min)
   midi_max = hz_to_midi(hz_max)
