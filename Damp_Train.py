@@ -33,8 +33,8 @@ if __name__ == "__main__":
   MELS_synth, Y_synth = h.shufflerow(MELS_synth, Y_synth, 0)
   MELS_real, Y_real = h.shufflerow(MELS_real, Y_real, 0)
 
-  MELS = torch.cat((MELS_synth[:7], MELS_real[:7]), dim=0)
-  Y = torch.cat((Y_synth[:7], Y_real[:7]), dim=0)
+  MELS = torch.cat((MELS_synth[:7000], MELS_real[:7000]), dim=0)
+  Y = torch.cat((Y_synth[:7000], Y_real[:7000]), dim=0)
   MELS, Y = h.shufflerow(MELS, Y, 0)
 
   mixed_dataset = h.CustomDataset(MELS, Y)
@@ -45,34 +45,37 @@ if __name__ == "__main__":
   DL_DS = {x:DataLoader(datasets[x], 1, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
   
   ### Set up ###
-  damp_encoder = n.DampingMapping().cuda()
-  damp_harm_encoder = n.DampSinToHarmEncoder().cuda()
+  damp_encoder = n.DampingMapping()#.cuda()
+  damp_harm_encoder = n.DampSinToHarmEncoder()#.cuda()
 
   ### Each "window" containing one damping parameter is 128 samples long (upsampling from 125 to 16000), so
-  ### Experiment with different window sizes e.g. all 3 the same?
-  damp_sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[256, 256, 256], win_lengths=[256, 256, 256]).cuda()
-  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[256, 256, 256], win_lengths=[256, 256, 256]).cuda()
+  damp_sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[256, 256, 256], win_lengths=[256, 256, 256])#.cuda()
+  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[256, 256, 256], win_lengths=[256, 256, 256])#.cuda()
   consistency_criterion = l.KDEConsistencyLoss
-# mate you forgot to scale the consistency loss man
+
   params = list(damp_encoder.parameters()) + list(damp_harm_encoder.parameters())
-  optimizer = torch.optim.Adam(params, lr=0.0003)
+  optimizer = torch.optim.Adam(params, lr=0.0001)
 
   # Training loop
   num_epochs = 5
   i = 0
+  j = 0
 
   for epoch in range(num_epochs):
     print('Epoch', epoch)
 
     with tqdm(DL_DS['train'], unit='batch') as tepoch:
       running_loss = []
+      sin_recon_running_loss = []
+      harm_recon_running_loss = []
+      consistency_running_loss = []
 
       for mels, audio in tepoch:
         print(audio.shape, 'THE TARGETS SHAPE')
         print(mels.shape, 'THE INPUTS SHAPE')
 
-        mels = mels.cuda()
-        audio = audio.cuda()
+        mels = mels#.cuda()
+        audio = audio#.cuda()
             
         #Damped sinusoisal encoder
         sin_freqs, sin_amps, sin_damps = damp_encoder(mels)
@@ -128,17 +131,35 @@ if __name__ == "__main__":
         optimizer.step()
 
         running_loss.append(total_loss.item())
-        tepoch.set_description_str(f"{epoch}, loss = {total_loss.item():.4f}", refresh=True)
+        sin_recon_running_loss.append(sin_recon_loss.item())
+        harm_recon_running_loss.append(harm_recon_loss.item())
+        consistency_running_loss.append(consistency_loss.item())
 
-        i += 1
+        tepoch.set_description_str(f"{epoch}, loss = {total_loss.item():.4f}", refresh=True)
 
         # Save a checkpoint
 
-        if i%100 == 0:
+        if i%1 == 0:
           torch.save(damp_encoder.state_dict(), f'Checkpoints/damp_encoder_ckpt_exp1_{epoch}_{i}.pt')
-          torch.save(damp_harm_encoder.state_dict(), f'Checkpoints/damp_harm_encoder_ckpt_exp_1{epoch}_{i}.pt')
-          torch.save(damp_sin_signal, f'Outputs/damp_sin_signal_exp_1{epoch}_{i}.pt')
-          torch.save(harm_signal, f'Outputs/harm_signal_exp_1{epoch}_{i}.pt')
+          torch.save(damp_harm_encoder.state_dict(), f'Checkpoints/damp_harm_encoder_ckpt_exp1_{epoch}_{i}.pt')
+          torch.save(damp_sin_signal, f'Outputs/damp_sin_signal_exp1_{epoch}_{i}.pt')
+          torch.save(harm_signal, f'Outputs/harm_signal_exp1_{epoch}_{i}.pt')
+          torch.save(harm_amps, f'Outputs/harm_amps_exp1_{epoch}_{i}.pt')
+          torch.save(harmonics, f'Outputs/harmonics_exp1_{epoch}_{i}.pt')
+          torch.save(sin_amps, f'Outputs/sin_amps_exp1_{epoch}_{i}.pt')
+          torch.save(sin_freqs, f'Outputs/sin_freqs_exp1_{epoch}_{i}.pt')
+          
+          sin_loss = torch.tensor(sin_recon_running_loss)
+          harm_loss = torch.tensor(harm_recon_running_loss)
+          consis_loss = torch.tensor(consistency_running_loss)
+          tot_loss = torch.tensor(running_loss)
+          torch.save(sin_loss, f'Losses/sin_recon_loss_exp1_{epoch}_{i}.pt')
+          torch.save(harm_loss, f'Losses/harm_recon_loss_exp1_{epoch}_{i}.pt')
+          torch.save(consis_loss, f'Losses/consistency_loss_exp1_{epoch}_{i}.pt')
+          torch.save(tot_loss, f'Losses/total_loss_exp1_{epoch}_{i}.pt')
+
+        i += 1
+        
 
     ##################
     ### Validation ###
@@ -148,8 +169,8 @@ if __name__ == "__main__":
       val_loss = []
 
       for mels_val, audio_val in DL_DS['val']:
-        mels_val = mels_val.cuda()
-        audio_val = audio_val.cuda()
+        mels_val = mels_val#.cuda()
+        audio_val = audio_val#.cuda()
         
         #Damped sinusoisal encoder
         sin_freqs_val, sin_amps_val, sin_damps_val = damp_encoder(mels_val)
@@ -168,7 +189,7 @@ if __name__ == "__main__":
 
         #Sinusoidal reconstruction loss
         sin_recon_loss_val = damp_sin_criterion(damp_sin_signal_val, audio_val.unsqueeze(0))
-        writer.add_scalar('Sinusoidal Recon loss/val', sin_recon_loss_val, i)
+        writer.add_scalar('Sinusoidal Recon loss/val', sin_recon_loss_val, j)
 
         #Harmonic encoder
         sin_freqs_val = sin_freqs_val.detach() #detach gradients before they go into the harmonic encoder
@@ -190,17 +211,18 @@ if __name__ == "__main__":
 
         #Harmonic reconstruction loss
         harm_recon_loss_val = harm_criterion(harm_signal_val, audio_val.unsqueeze(0))
-        writer.add_scalar('Harmonic Recon loss/val', harm_recon_loss_val, i)
+        writer.add_scalar('Harmonic Recon loss/val', harm_recon_loss_val, j)
 
         #Consistency loss
         consistency_loss_val = consistency_criterion(harm_amps_val, harmonics_val, sin_amps_val, sin_freqs_val)
-        writer.add_scalar('Consistency loss/train', consistency_loss_val, i)
+        writer.add_scalar('Consistency loss/train', consistency_loss_val, j)
 
         #Total loss
         total_loss_val = sin_recon_loss_val + harm_recon_loss_val + (0.1 * consistency_loss_val)
-        writer.add_scalar('Loss/val', total_loss_val, i)
+        writer.add_scalar('Loss/val', total_loss_val, j)
 
         val_loss.append(total_loss_val)
+        j += 1
 
 
   writer.flush()

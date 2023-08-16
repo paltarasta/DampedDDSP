@@ -2,3 +2,6 @@ runs/
 trainval/
 SavedTensors/
 Checkpoints/
+Outputs/
+Losses/
+bmktrainval/
