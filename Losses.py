@@ -126,7 +126,7 @@ def KDEConsistencyLoss(amps_a, freqs_a, amps_b, freqs_b):
     scale_a = 0.1
     scale_b = 0.1
 
-    if weight_a > 0: #why do we need the if statements?
+    if weight_a > 0: 
         loss_a = nll(amps_a, freqs_a, amps_b, freqs_b, scale_b)
         loss += torch.mean(weight_a * loss_a)
     if weight_b > 0:
