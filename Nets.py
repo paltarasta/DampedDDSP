@@ -185,12 +185,13 @@ class DampingMapping(nn.Module):
     self.damping_dense = nn.Linear(9*1024, 100)
     self.amp_scale = h.exp_sigmoid
     self.register_buffer("scale", torch.logspace(np.log2(20), np.log2(8000), 64, base=2.0))
-    self.softmax = nn.Softmax(dim=2)
+    self.softmax = nn.Softmax(dim=3)
 
   def forward(self, x):
     out = self.resnet(x)
     out = rearrange(out, 'z a b c -> z b c a')
     out = torch.reshape(out, (out.shape[0], 125, 9*1024))
+    print('out',out.shape)
 
     frequency = self.frequency_dense(out)
     frequency = rearrange(frequency, 'b t (k f) -> b t k f', f=64)
@@ -221,12 +222,12 @@ class SinMapToFrequency(nn.Module):
     self.amplitude_dense = nn.Linear(9*1024, 100)
     self.amp_scale = h.exp_sigmoid
     self.register_buffer("scale", torch.logspace(np.log2(20), np.log2(8000), 64, base=2.0))
-    self.softmax = nn.Softmax(dim=2)
+    self.softmax = nn.Softmax(dim=3)
 
   def forward(self, x):
     out = self.resnet(x)
     out = rearrange(out, 'z a b c -> z b c a')
-    out = torch.reshape(out, (out.shape[0], 126, 9*1024))
+    out = torch.reshape(out, (out.shape[0], 125, 9*1024))
 
     frequency = self.frequency_dense(out)
     frequency = rearrange(frequency, 'b t (k f) -> b t k f', f=64)
