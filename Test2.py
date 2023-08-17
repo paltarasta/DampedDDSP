@@ -10,70 +10,119 @@ from einops import rearrange
 import matplotlib.pyplot as plt
 import os
 import Losses as l
-from torch.utils.tensorboard import SummaryWriter
 
-MELS = torch.load('SavedTensors/meltensor_125.pt')
-print(MELS[0].shape)
-model = n.DampingMapping()
-sin_freqs, sin_amps, sin_damps = model(MELS[0].unsqueeze(0))
-sin_freqs = sin_freqs.detach()
-sin_amps = sin_amps.detach()
-sin_damps = sin_damps.detach()
-print(sin_amps.shape, sin_freqs.shape, sin_damps.shape)
-fs = 16000
+if __name__ == "__main__":
 
+  ### Load tensors and create dataloader ###
+  MELS = torch.load('SavedTensors/melsynth_125.pt')[:100]
+  Y = torch.load('SavedTensors/ysynth_125.pt')[:100]
 
-pitch = h.UpsampleTime(sin_freqs, fs)
-amplitudes = h.UpsampleTime(sin_amps, fs)
-damping = sin_damps
+  mixed_dataset = h.CustomDataset(MELS, Y)
+  datasets = h.train_val_dataset(mixed_dataset)
+  print('Train', len(datasets['train']))
+  print('Val', len(datasets['val']))
 
-factor = fs // sin_freqs.size(1)
-print(sin_freqs.size(1))
-
-target = s.damped_synth(pitch, amplitudes, damping, fs, factor)
-'''
-pitch = torch.rand(1, 125, 100)*500
-interpolated = h.UpsampleTime(pitch, 16000)
-pitch = interpolated
-
-amplitudes = torch.rand(1, 125, 100)
-amplitudes = h.UpsampleTime(amplitudes, 16000)
-
-fs = 16000
-
-indices = torch.arange(pitch.size(1)).unsqueeze(0).unsqueeze(-1)
-damping = torch.zeros(1, 125, 100)
-target = s.damped_synth(pitch, amplitudes, damping, fs, 16000//125)
-'''
-
-pred_amplitudes = torch.rand((1, 125, 100))
-pred_pitches = torch.rand((1, 125, 100))
-pred_damping = torch.randn(1, 125, 100, requires_grad=True)
-
-upsampled_pitches = h.UpsampleTime(pred_pitches, fs).requires_grad_(True)
-upsampled_amplitudes = h.UpsampleTime(pred_amplitudes, fs).requires_grad_(True)
-
-optimiser = torch.optim.Adam([upsampled_amplitudes, upsampled_pitches, pred_damping], lr = 0.001)
-
-criterion = nn.MSELoss()
-steps = 5000
-mainloss = []
-
-t = trange(steps)
-for step in t:
-  prediction = s.damped_synth(upsampled_pitches, upsampled_amplitudes, pred_damping, fs, factor)
-  loss = criterion(target, prediction)
-  optimiser.zero_grad()
-  loss.backward()
-  optimiser.step()
+  DL_DS = {x:DataLoader(datasets[x], 1, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
   
-  mainloss.append(loss.item())
-  t.set_description_str(f"{step}, loss = {loss.item():.4f}")
+  ### Set up ###
+  damp_encoder = n.DampingMapping()#.cuda()
+  damp_harm_encoder = n.DampSinToHarmEncoder()#.cuda()
 
-plt.figure(1)
-plt.plot(mainloss)
-plt.show()
-plt.figure(2)
-plt.plot(target.squeeze())
-plt.plot(prediction.squeeze().detach())
-plt.show()
+  ### Each "window" containing one damping parameter is 128 samples long (upsampling from 125 to 16000), so
+  damp_sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[256, 256, 256], win_lengths=[256, 256, 256])#.cuda()
+  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[256, 256, 256], win_lengths=[256, 256, 256])#.cuda()
+  consistency_criterion = l.KDEConsistencyLoss
+
+  params = list(damp_encoder.parameters()) + list(damp_harm_encoder.parameters())
+  optimizer = torch.optim.Adam(params, lr=0.0001)
+
+  # Training loop
+  num_epochs = 1
+  i = 0
+  j = 0
+
+  for epoch in range(num_epochs):
+    print('Epoch', epoch)
+
+    with tqdm(DL_DS['train'], unit='batch') as tepoch:
+      running_loss = []
+      sin_recon_running_loss = []
+      harm_recon_running_loss = []
+      consistency_running_loss = []
+
+      for mels, audio in tepoch:
+        if i > 1:
+          break
+        print(audio.shape, 'THE TARGETS SHAPE')
+        print(mels.shape, 'THE INPUTS SHAPE')
+
+        mels = mels#.cuda()
+        audio = audio#.cuda()
+            
+        #Damped sinusoisal encoder
+        sin_freqs, sin_amps, sin_damps = damp_encoder(mels)
+        print(sin_freqs)
+
+        #Damped sinusoidal synthesiser
+        fs = 16000
+        old_fs = sin_freqs.size(1)
+        factor = fs // old_fs
+        i += 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'''
+
+        upsampled_sin_freqs = h.UpsampleTime(sin_freqs, fs)
+        upsampled_sin_amps = h.UpsampleTime(sin_amps, fs)
+        upsampled_sin_damps = h.upsample_to_damper(sin_damps, factor)
+
+        damp_sin_signal = s.damped_synth(upsampled_sin_freqs, upsampled_sin_amps, upsampled_sin_damps, fs)
+        damp_sin_signal = rearrange(damp_sin_signal, 'a b c -> a c b')
+
+        #Harmonic encoder
+        sin_freqs = sin_freqs.detach() #detach gradients before they go into the harmonic encoder
+        sin_amps = sin_amps.detach()
+        sin_damps = sin_damps.detach() #do we need to do this?
+        glob_amp, harm_dist, f0 = damp_harm_encoder(sin_freqs, sin_amps, sin_damps)
+
+        #Reconstruct audio from harmonic encoder results
+        harmonics = h.get_harmonic_frequencies(f0) #need this to then do the sin synth - creates a bank of 100 sinusoids
+        harm_dist = h.remove_above_nyquist(harmonics, harm_dist) #only keep the frequencies which are below the nyquist criterion, set amplitudes of other freqs to 0
+        harm_dist = h.safe_divide(harm_dist, torch.sum(harm_dist, dim=-1, keepdim=True)) #normalise
+        harm_amps = glob_amp * harm_dist
+
+        upsampled_harmonics = h.UpsampleTime(harmonics, fs)
+        upsampled_harm_amps = h.UpsampleTime(harm_amps, fs)
+
+        harm_signal = s.sinusoidal_synth(upsampled_harmonics, upsampled_harm_amps, fs) #if we use the sinusoidal synth it defeats the purpose?
+        harm_signal = rearrange(harm_signal, 'a b c -> a c b')
+'''
+       
