@@ -10,7 +10,7 @@ from einops import rearrange
 import matplotlib.pyplot as plt
 import os
 import Losses as l
-
+'''
 if __name__ == "__main__":
 
   ### Load tensors and create dataloader ###
@@ -22,7 +22,7 @@ if __name__ == "__main__":
   print('Train', len(datasets['train']))
   print('Val', len(datasets['val']))
 
-  DL_DS = {x:DataLoader(datasets[x], 1, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
+  DL_DS = {x:DataLoader(datasets[x], 1, shuffle=False, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
   
   ### Set up ###
   damp_encoder = n.DampingMapping()#.cuda()
@@ -58,19 +58,41 @@ if __name__ == "__main__":
 
         mels = mels#.cuda()
         audio = audio#.cuda()
+        mels = torch.ones(1,1,125,229)
             
         #Damped sinusoisal encoder
         sin_freqs, sin_amps, sin_damps = damp_encoder(mels)
-        print(sin_freqs)
+        print(sin_amps)
 
         #Damped sinusoidal synthesiser
         fs = 16000
         old_fs = sin_freqs.size(1)
         factor = fs // old_fs
         i += 1
+'''
+def expnew(x, exponent=10.0, max_value=2.0, threshold=1e-7):
+  """Exponentiated Sigmoid pointwise nonlinearity.
+
+  Bounds input to [threshold, max_value] with slope given by exponent.
+"""
+  exponentiated = max_value * (torch.sigmoid(x)**torch.log(torch.tensor(exponent))) + threshold
+  return exponentiated
+def expold(x, exponent=10.0, max_value=2.0, threshold=1e-7):
+  """Exponentiated Sigmoid pointwise nonlinearity.
+
+  Bounds input to [threshold, max_value] with slope given by exponent.
+"""
+  exponentiated = max_value * torch.sigmoid(x)**torch.log(torch.tensor(exponent)) + threshold
+  return exponentiated
 
 
+x = torch.ones(1,125,100) * (-0.001)
 
+ind = torch.arange(16000).unsqueeze(-1)
+print(ind)
+print(x.abs())
+
+print()
 
 
 

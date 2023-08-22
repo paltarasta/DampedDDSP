@@ -63,7 +63,7 @@ class ResNet(nn.Module):
         self.conv = nn.Conv2d(1, 64, kernel_size=7, stride=(1,2), padding=3)
         self.maxpool = nn.MaxPool2d((1,3), stride=(1,2))
 
-        self.residual_block1 = ResidualBlock(64, 128, 125, 57, 1) #changing 126 to 125 for nice numbers later in the damping
+        self.residual_block1 = ResidualBlock(64, 128, 125, 57, 1) 
         self.residual_block2 = ResidualBlock(128, 128, 125, 57, 1)
         self.residual_block3 = ResidualBlock(128, 256, 125, 57, 2)
         self.residual_block4 = ResidualBlock(256, 256, 125, 30, 1)
@@ -96,81 +96,6 @@ class ResNet(nn.Module):
         return out
     
 
-#### Small ResNet ####
-
-class SimpleResidualBlock(nn.Module):
-
-    def __init__(self, in_channels, out_channels, time, freq, stride):
-        super(SimpleResidualBlock, self).__init__()
-        self.first_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
-        self.other_first_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=(1, stride), padding=(0,1))
-        self.layer_norm1 = nn.LayerNorm([in_channels, time, freq])
-        self.relu1 = nn.ReLU()
-        self.conv1 = nn.Conv2d(in_channels, out_channels//4, kernel_size=1, stride=1) #kernel = 1 means no spatial reduction
-
-        self.layer_norm2 = nn.LayerNorm([out_channels//4, time, freq])
-        self.relu2 = nn.ReLU()
-        self.conv2 = nn.Conv2d(out_channels//4, out_channels//4, kernel_size=(1,3), stride=(1,stride))
-
-        self.layer_norm3 = nn.LayerNorm([out_channels//4, time, freq-2])
-        self.layer_norm4 = nn.LayerNorm([out_channels//4, time, ((freq-3)//stride)+1])
-        self.relu3 = nn.ReLU()
-        self.conv3 = nn.Conv2d(out_channels//4, out_channels, kernel_size=1, stride=1, padding=(0,1))
-
-        self.residual = nn.Identity()
-        self.stride = stride
-
-    def forward(self, x):
-      if self.stride == 2:
-        res = self.other_first_conv(x)
-      else:
-        res = self.first_conv(x)
-
-      residual = self.residual(res)
-
-      out = self.layer_norm1(x)
-      out = self.relu1(out)
-      out = self.conv1(out)
-
-      out = self.layer_norm2(out)
-      out = self.relu2(out)
-      out = self.conv2(out)
-      if self.stride == 2:
-        out = self.layer_norm4(out)
-      else:
-        out = self.layer_norm3(out)
-      out = self.relu3(out)
-      out = self.conv3(out)
-
-      out += residual
-
-      return out
-
-
-class SimpleResNet(nn.Module):
-    """Residual network."""
-
-    def __init__(self):
-        super(SimpleResNet, self).__init__()
-        self.conv = nn.Conv2d(1, 64, kernel_size=7, stride=(1,2), padding=3)
-        self.maxpool = nn.MaxPool2d((1,3), stride=(1,2))
-
-        self.residual_block1 = SimpleResidualBlock(64, 128, 126, 57, 1)
-        self.conv2 = nn.Conv2d(128, 512, kernel_size=(1,41), stride=(1,2))
-        self.residual_block12 = SimpleResidualBlock(512, 1024, 126, 9, 1)
-
-
-    def forward(self, x):
-        out = self.conv(x)
-        out = self.maxpool(out)
-
-        out = self.residual_block1(out)
-        out = self.conv2(out)
-        out = self.residual_block12(out)
-
-        return out
-    
-
 class DampingMapping(nn.Module):
   #Takes in a log scaled mel spec and outputs parameters which drive the damped sinusoidal synthesiser
 
@@ -179,7 +104,6 @@ class DampingMapping(nn.Module):
     super(DampingMapping, self).__init__()
 
     self.resnet = ResNet()
-    #self.resnet = SimpleResNet()
     self.frequency_dense = nn.Linear(9*1024, 100*64)
     self.amplitude_dense = nn.Linear(9*1024, 100)
     self.damping_dense = nn.Linear(9*1024, 100)
@@ -191,7 +115,6 @@ class DampingMapping(nn.Module):
     out = self.resnet(x)
     out = rearrange(out, 'z a b c -> z b c a')
     out = torch.reshape(out, (out.shape[0], 125, 9*1024))
-    print('out',out.shape)
 
     frequency = self.frequency_dense(out)
     frequency = rearrange(frequency, 'b t (k f) -> b t k f', f=64)
@@ -200,16 +123,16 @@ class DampingMapping(nn.Module):
 
     amplitude = self.amplitude_dense(out)
     amplitude = self.amp_scale(amplitude)
-    amplitude = amplitude.squeeze(-1)
 
     damping = self.damping_dense(out)
+    print('prescale',damping.shape)
     damping = self.amp_scale(damping)
-    damping = damping.squeeze(-1)
+    print('postscale',damping.shape)
 
     return frequency, amplitude, damping
   
 
-class SinMapToFrequency(nn.Module):
+class SinMapToFrequency(nn.Module): #for benchmark
   #Takes in a log scaled mel spec and outputs parameters which drive the sinusoidal synthesiser
 
   def __init__(self):
@@ -217,7 +140,6 @@ class SinMapToFrequency(nn.Module):
     super(SinMapToFrequency, self).__init__()
 
     self.resnet = ResNet()
-    #self.resnet = SimpleResNet()
     self.frequency_dense = nn.Linear(9*1024, 100*64)
     self.amplitude_dense = nn.Linear(9*1024, 100)
     self.amp_scale = h.exp_sigmoid
@@ -321,12 +243,10 @@ class DampSinToHarmEncoder(nn.Module):
     glob_amp = self.glob_amp_out(out)
     cn = self.cn_out(out)
     f0 = self.f0_out(out)
-    #harm_damp = self.damping_out(out) #don't necessarily need damping to be output for the synth
 
     #Scaling
     glob_amp = self.amp_scale(glob_amp)
     cn = self.amp_scale(cn)
-    #harm_damp = self.amp_scale(harm_damp)
 
     f0 = self.softmax(f0)
     f0 = torch.sum(f0 * self.freq_scale, dim=-1, keepdim=True)

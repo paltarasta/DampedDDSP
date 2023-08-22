@@ -15,7 +15,7 @@ def UpsampleTime(x, fs=16000): #upsample time dimension after using encoders
   timesteps = x[0,:,0].shape[0]
   upsampled_timesteps = fs
   channels = x[0,0,:].shape[0]
-  upsampled = torch.zeros((batch, upsampled_timesteps, channels))#.cuda()
+  upsampled = torch.zeros((batch, upsampled_timesteps, channels)).cuda()
 
   j = 1
 
@@ -40,7 +40,7 @@ def upsample(signal, factor):
 
 def upsample_to_damper(damping, factor):
     damping = rearrange(damping, 'a b c -> b a c')
-    indices = torch.arange(factor).unsqueeze(-1)
+    indices = torch.arange(factor).unsqueeze(-1)#.cuda()
     exponent = - damping.abs() * indices
     exponent = rearrange(exponent, 'a b c -> (a b) c')
     exponent = exponent.unsqueeze(0)
@@ -244,7 +244,7 @@ def exp_sigmoid(x, exponent=10.0, max_value=2.0, threshold=1e-7):
 
   Bounds input to [threshold, max_value] with slope given by exponent.
 """
-  exponentiated = max_value * torch.sigmoid(x)**torch.log(torch.tensor(exponent)) + threshold
+  exponentiated = max_value * (torch.sigmoid(x)**torch.log(torch.tensor(exponent))) + threshold
   return exponentiated
 
 
@@ -260,7 +260,7 @@ def get_harmonic_frequencies(f0):
     harmonic_frequencies: Oscillator frequencies (Hz).
       Shape [batch_size, :, n_harmonics].
   """
-  f_ratios = torch.linspace(1.0, 100.0, 100)#.cuda()
+  f_ratios = torch.linspace(1.0, 100.0, 100).cuda()
   f_ratios = f_ratios.unsqueeze(0).unsqueeze(0)
   harmonic_frequencies = f0 * f_ratios
   return harmonic_frequencies
@@ -268,15 +268,15 @@ def get_harmonic_frequencies(f0):
 
 # transcribed from magenta's tensorflow implementation
 def remove_above_nyquist(harmonics, cn, sr=16000):
-    condition = torch.ge(harmonics, sr/2)#.cuda()
-    cn = torch.where(condition, torch.zeros_like(cn), cn)#.cuda()
+    condition = torch.ge(harmonics, sr/2).cuda()
+    cn = torch.where(condition, torch.zeros_like(cn), cn).cuda()
     return cn
 
 
 # transcribed from magenta's tensorflow implementation
 def safe_divide(numerator, denominator, eps=1e-7):
   """Avoid dividing by zero by adding a small epsilon."""
-  safe_denominator = torch.where(denominator == 0.0, eps, denominator)#.cuda()
+  safe_denominator = torch.where(denominator == 0.0, eps, denominator).cuda()
   return numerator / safe_denominator
 
 

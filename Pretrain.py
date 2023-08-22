@@ -43,7 +43,7 @@ if __name__ == "__main__":
   sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
   harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
   consistency_criterion = l.KDEConsistencyLoss
-  self_supervision_criterion = l.HarmonicConsistencyLoss#.cuda()
+  self_supervision_criterion = l.HarmonicConsistencyLoss
 
   params = list(sin_encoder.parameters()) + list(harm_encoder.parameters())
   optimizer = torch.optim.Adam(params, lr=0.0003)
@@ -131,8 +131,8 @@ if __name__ == "__main__":
 
         if i%100 == 0:
           # Save a checkpoint
-          torch.save(sin_encoder.state_dict(), f'Checkpoints/sin_encoder_ckpt_{epoch}.pt')
-          torch.save(harm_encoder.state_dict(), f'Checkpoints/harm_encoder_ckpt_{epoch}.pt')
+          torch.save(sin_encoder.state_dict(), f'Checkpoints/sin_encoder_ckpt_{epoch}_{i}.pt')
+          torch.save(harm_encoder.state_dict(), f'Checkpoints/harm_encoder_ckpt_{epoch}_{i}.pt')
 
         i += 1
 
