@@ -10,7 +10,7 @@ import os
 import Losses as l
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter('bmktrainval')
+writer = SummaryWriter('finetune')
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Running on device: {device}")
@@ -43,25 +43,35 @@ if __name__ == "__main__":
   print('Train', len(datasets['train']))
   print('Val', len(datasets['val']))
   
-  DL_DS = {x:DataLoader(datasets[x], 1, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
+  DL_DS = {x:DataLoader(datasets[x], 16, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
 
   ### Set up ###
   sin_encoder = n.SinMapToFrequency().cuda()
   harm_encoder = n.SinToHarmEncoder().cuda()
 
   ### Load pretrained weights ###
-  sin_encoder.load_state_dict(torch.load("Checkpoints\sin_encoder_ckpt_1.pt"))
-  harm_encoder.load_state_dict(torch.load("Checkpoints\harm_encoder_ckpt_1.pt"))
+  sin_encoder.load_state_dict(torch.load("Pretrain\Checkpoints\sin_encoder_ckpt_1.pt"))
+  harm_encoder.load_state_dict(torch.load("Pretrain\Checkpoints\harm_encoder_ckpt_1.pt"))
 
-  sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512]).cuda()
-  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512]).cuda()
+  sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512],
+                                                  hop_sizes=[1024, 2048, 512],
+                                                  win_lengths=[1024, 2048, 512],
+                                                  mag_distance="L2",
+                                                  w_log_mag=0.0,
+                                                  w_lin_mag=1.0).cuda()
+  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512],
+                                                  hop_sizes=[1024, 2048, 512],
+                                                  win_lengths=[1024, 2048, 512],
+                                                  mag_distance="L2",
+                                                  w_log_mag=0.0,
+                                                  w_lin_mag=1.0).cuda()
   consistency_criterion = l.KDEConsistencyLoss
 
   params = list(sin_encoder.parameters()) + list(harm_encoder.parameters())
   optimizer = torch.optim.Adam(params, lr=0.0003)
 
   # Training loop
-  num_epochs = 5
+  num_epochs = 2
   i = 0
   j = 0
 
@@ -129,18 +139,18 @@ if __name__ == "__main__":
 
         i += 1
         
-        if i%100 == 0:
+        if i%75 == 0:
           # Save a checkpoint
-          torch.save(sin_encoder.state_dict(), f'Checkpoints/finetune_sin_encoder_ckpt_{epoch}_{i}.pt')
-          torch.save(harm_encoder.state_dict(), f'Checkpoints/finetune_harm_encoder_ckpt_{epoch}_{i}.pt')
+          torch.save(sin_encoder.state_dict(), f'Finetune/Checkpoints/finetune_sin_encoder_ckpt_{epoch}_{i}.pt')
+          torch.save(harm_encoder.state_dict(), f'Finetune/Checkpoints/finetune_harm_encoder_ckpt_{epoch}_{i}.pt')
           sin_loss = torch.tensor(sin_recon_running_loss)
           harm_loss = torch.tensor(harm_recon_running_loss)
           consis_loss = torch.tensor(consistency_running_loss)
           tot_loss = torch.tensor(running_loss)
-          torch.save(sin_loss, f'Losses/sin_recon_loss_bmk_{epoch}_{i}.pt')
-          torch.save(harm_loss, f'Losses/harm_recon_loss_bmk_{epoch}_{i}.pt')
-          torch.save(consis_loss, f'Losses/consistency_loss_bmk_{epoch}_{i}.pt')
-          torch.save(tot_loss, f'Losses/total_loss_bmk_{epoch}_{i}.pt')          
+          torch.save(sin_loss, f'Finetune/Losses/sin_recon_loss_finetune_{epoch}_{i}.pt')
+          torch.save(harm_loss, f'Finetune/Losses/harm_recon_loss_finetune_{epoch}_{i}.pt')
+          torch.save(consis_loss, f'Finetune/Losses/consistency_loss_finetune_{epoch}_{i}.pt')
+          torch.save(tot_loss, f'Finetune/Losses/total_loss_finetune_{epoch}_{i}.pt')          
     
     ##################
     ### Validation ###
@@ -193,9 +203,9 @@ if __name__ == "__main__":
         writer.add_scalar('Loss/val', total_loss_val, j)
         val_loss.append(total_loss_val.item())
 
-        if j%100 == 0:
+        if j%75 == 0:
           tot_loss_val = torch.tensor(val_loss)
-          torch.save(tot_loss_val, f'Losses/total_loss_bmk_val_{epoch}_{j}.pt')          
+          torch.save(tot_loss_val, f'Finetune/Losses/total_loss_finetune_val_{epoch}_{j}.pt')          
 
         j += 1
 

@@ -10,7 +10,7 @@ import os
 import Losses as l
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter('normal')
+writer = SummaryWriter('audio')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #print(f"Running on device: {device}")
@@ -21,26 +21,14 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if __name__ == "__main__":
 
   ### Load tensors and create dataloader ###
-  MELS_synth = torch.load('SavedTensors/melsynth_125.pt')
-  MELS_real = torch.load('SavedTensors/meltensor_125.pt')
-  Y_synth = torch.load('SavedTensors/ysynth_125.pt')
-  Y_real = torch.load('SavedTensors/y_125.pt').unsqueeze(1)
-  print(MELS_synth.shape)
-  print(MELS_real.shape)
-  print(Y_synth.shape)
-  print(Y_real.shape)
+  MELS_audio = torch.load('SavedTensors/mels_audio_only_48k.pt')
+  Y_audio = torch.load('SavedTensors/y_audio_only_48k.pt')
 
-  MELS_synth, Y_synth = h.shufflerow(MELS_synth, Y_synth, 0)
-  MELS_real, Y_real = h.shufflerow(MELS_real, Y_real, 0)
+  MELS = MELS_audio[:15000]
+  Y = Y_audio[:15000]
 
-  MELS = torch.cat((MELS_synth[:7500], MELS_real[:7500]), dim=0)
-  Y = torch.cat((Y_synth[:7500], Y_real[:7500]), dim=0)
-  MELS, Y = h.shufflerow(MELS, Y, 0)
-  Y_synth = 0
-  Y_real = 0
-
-  mixed_dataset = h.CustomDataset(MELS, Y)
-  datasets = h.train_val_dataset(mixed_dataset)
+  audio_dataset = h.CustomDataset(MELS, Y)
+  datasets = h.train_val_dataset(audio_dataset)
   print('Train', len(datasets['train']))
   print('Val', len(datasets['val']))
 
@@ -149,26 +137,26 @@ if __name__ == "__main__":
         # Save a checkpoint
 
         if i%75 == 0:
-          torch.save(damp_encoder.state_dict(), f'Normal/Checkpoints/damp_encoder_ckpt_normal_{epoch}_{i}.pt')
-          torch.save(damp_harm_encoder.state_dict(), f'Normal/Checkpoints/damp_harm_encoder_ckpt_normal_{epoch}_{i}.pt')
-          torch.save(damp_sin_signal, f'Normal/Outputs/damp_sin_signal_normal_{epoch}_{i}.pt')
-          torch.save(harm_signal, f'Normal/Outputs/harm_signal_normal_{epoch}_{i}.pt')
-          torch.save(harm_amps, f'Normal/Outputs/harm_amps_normal_{epoch}_{i}.pt')
-          torch.save(harmonics, f'Normal/Outputs/harmonics_normal_{epoch}_{i}.pt')
-          torch.save(sin_amps, f'Normal/Outputs/sin_amps_normal_{epoch}_{i}.pt')
-          torch.save(sin_damps, f'Normal/Outputs/sin_damps_normal_{epoch}_{i}.pt')
-          torch.save(upsampled_sin_damps, f'Normal/Outputs/upsampled_sin_damps_normal_{epoch}_{i}.pt')
-          torch.save(sin_freqs, f'Normal/Outputs/sin_freqs_normal_{epoch}_{i}.pt')
+          torch.save(damp_encoder.state_dict(), f'Audio/Checkpoints/damp_encoder_ckpt_audio_{epoch}_{i}.pt')
+          torch.save(damp_harm_encoder.state_dict(), f'Audio/Checkpoints/damp_harm_encoder_ckpt_audio_{epoch}_{i}.pt')
+          torch.save(damp_sin_signal, f'Audio/Outputs/damp_sin_signal_audio_{epoch}_{i}.pt')
+          torch.save(harm_signal, f'Audio/Outputs/harm_signal_audio_{epoch}_{i}.pt')
+          torch.save(harm_amps, f'Audio/Outputs/harm_amps_audio_{epoch}_{i}.pt')
+          torch.save(harmonics, f'Audio/Outputs/harmonics_audio_{epoch}_{i}.pt')
+          torch.save(sin_amps, f'Audio/Outputs/sin_amps_audio_{epoch}_{i}.pt')
+          torch.save(sin_damps, f'Audio/Outputs/sin_damps_audio_{epoch}_{i}.pt')
+          torch.save(upsampled_sin_damps, f'Audio/Outputs/upsampled_sin_damps_audio_{epoch}_{i}.pt')
+          torch.save(sin_freqs, f'Audio/Outputs/sin_freqs_audio_{epoch}_{i}.pt')
           
           sin_loss = torch.tensor(sin_recon_running_loss)
           harm_loss = torch.tensor(harm_recon_running_loss)
           consis_loss = torch.tensor(consistency_running_loss)
           tot_loss = torch.tensor(running_loss)
-          torch.save(sin_loss, f'Normal/Losses/sin_recon_loss_normal_{epoch}_{i}.pt')
-          torch.save(harm_loss, f'Normal/Losses/harm_recon_loss_normal_{epoch}_{i}.pt')
-          torch.save(consis_loss, f'Normal/Losses/consistency_loss_normal_{epoch}_{i}.pt')
-          torch.save(tot_loss, f'Normal/Losses/total_loss_normal_{epoch}_{i}.pt')
-          torch.save(audio, f'Normal/Outputs/audio_normal{epoch}_{i}.pt')
+          torch.save(sin_loss, f'Audio/Losses/sin_recon_loss_audio_{epoch}_{i}.pt')
+          torch.save(harm_loss, f'Audio/Losses/harm_recon_loss_audio_{epoch}_{i}.pt')
+          torch.save(consis_loss, f'Audio/Losses/consistency_loss_audio_{epoch}_{i}.pt')
+          torch.save(tot_loss, f'Audio/Losses/total_loss_audio_{epoch}_{i}.pt')
+          torch.save(audio, f'Audio/Outputs/audio_audio_{epoch}_{i}.pt')
 
         i += 1
         

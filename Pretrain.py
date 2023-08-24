@@ -11,9 +11,9 @@ import Losses as l
 from torch.utils.tensorboard import SummaryWriter
 
 writer = SummaryWriter('pretrain')
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#print(f"Running on device: {device}")
+print(f"Running on device: {device}")
 
 #################################################################################################
 ########################################## PRETRAINING ##########################################
@@ -34,16 +34,26 @@ if __name__ == "__main__":
   print('Train', len(datasets['train']))
   print('Val', len(datasets['val']))
 
-  DL_DS = {x:DataLoader(datasets[x], 1, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
+  DL_DS = {x:DataLoader(datasets[x], 16, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
 
   ### Set up ###
-  sin_encoder = n.SinMapToFrequency()#.cuda()
-  harm_encoder = n.SinToHarmEncoder()#.cuda()
+  sin_encoder = n.SinMapToFrequency().cuda()
+  harm_encoder = n.SinToHarmEncoder().cuda()
 
-  sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
-  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512])#.cuda()
+  sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512],
+                                                  hop_sizes=[1024, 2048, 512],
+                                                  win_lengths=[1024, 2048, 512],
+                                                  mag_distance="L2",
+                                                  w_log_mag=0.0,
+                                                  w_lin_mag=1.0).cuda()
+  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512],
+                                                  hop_sizes=[1024, 2048, 512],
+                                                  win_lengths=[1024, 2048, 512],
+                                                  mag_distance="L2",
+                                                  w_log_mag=0.0,
+                                                  w_lin_mag=1.0).cuda()
   consistency_criterion = l.KDEConsistencyLoss
-  self_supervision_criterion = l.HarmonicConsistencyLoss#.cuda()
+  self_supervision_criterion = l.HarmonicConsistencyLoss
 
   params = list(sin_encoder.parameters()) + list(harm_encoder.parameters())
   optimizer = torch.optim.Adam(params, lr=0.0003)
@@ -59,16 +69,16 @@ if __name__ == "__main__":
       running_loss = []
 
       for mels, audio, glob_amp_t, harm_dist_t, f0_hz_t, sin_amps_t, sin_freqs_t in tepoch:
-        print(audio.shape, 'THE TARGETS SHAPE')
-        print(mels.shape, 'THE INPUTS SHAPE')
+#        print(audio.shape, 'THE TARGETS SHAPE')
+ #       print(mels.shape, 'THE INPUTS SHAPE')
 
-        mels = mels#.cuda()
-        audio = audio#.cuda()
-        glob_amp_t = glob_amp_t#.cuda()
-        harm_dist_t = harm_dist_t#.cuda()
-        f0_hz_t = f0_hz_t#.cuda()
-        sin_amps_t = sin_amps_t#.cuda()
-        sin_freqs_t = sin_freqs_t#.cuda()
+        mels = mels.cuda()
+        audio = audio.cuda()
+        glob_amp_t = glob_amp_t.cuda()
+        harm_dist_t = harm_dist_t.cuda()
+        f0_hz_t = f0_hz_t.cuda()
+        sin_amps_t = sin_amps_t.cuda()
+        sin_freqs_t = sin_freqs_t.cuda()
 
         #Sinusoisal encoder
         sin_freqs, sin_amps = sin_encoder(mels)
@@ -80,6 +90,7 @@ if __name__ == "__main__":
         #Sinusoidal reconstruction loss
         sin_recon_loss = sin_criterion(sin_signal, audio.unsqueeze(0))
         writer.add_scalar('Sinusoidal Recon Loss/Pretrain', sin_recon_loss, i)
+
 
         #Harmonic encoder
         sin_freqs = sin_freqs.detach() #detach gradients before they go into the harmonic encoder
@@ -99,6 +110,7 @@ if __name__ == "__main__":
         harm_recon_loss = harm_criterion(harm_signal, audio.unsqueeze(0))
         writer.add_scalar('Harmonic Recon Loss/Pretrain', harm_recon_loss, i)
 
+
         #Consistency loss
         consistency_loss = consistency_criterion(harm_amps, harmonics, sin_amps, sin_freqs) #do i need to include the damping here?
         writer.add_scalar('Consistency Loss/Pretrain', consistency_loss, i)
@@ -116,6 +128,7 @@ if __name__ == "__main__":
                                              sin_freqs_t
                                              )
         writer.add_scalar('SSLoss/Pretrain', ss_loss, i)
+        
 
         #Total loss
         total_loss = sin_recon_loss + harm_recon_loss + (0.1 * consistency_loss) + ss_loss
@@ -129,13 +142,15 @@ if __name__ == "__main__":
         running_loss.append(total_loss.item())
         tepoch.set_description_str(f"{epoch}, loss = {total_loss.item():.4f}", refresh=True)
 
-        if i%100 == 0:
+        if i%250 == 0:
           # Save a checkpoint
-          torch.save(sin_encoder.state_dict(), f'Checkpoints/sin_encoder_ckpt_{epoch}.pt')
-          torch.save(harm_encoder.state_dict(), f'Checkpoints/harm_encoder_ckpt_{epoch}.pt')
+          print('Saving checkpoint...')
+          torch.save(sin_encoder.state_dict(), f'Pretrain/Checkpoints/sin_encoder_ckpt_{epoch}_{i}.pt')
+          torch.save(harm_encoder.state_dict(), f'Pretrain/Checkpoints/harm_encoder_ckpt_{epoch}_{i}.pt')
 
         i += 1
 
 
   writer.flush()
   writer.close()
+

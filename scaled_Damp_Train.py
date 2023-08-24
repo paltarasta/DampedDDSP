@@ -10,7 +10,7 @@ import os
 import Losses as l
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter('normal')
+writer = SummaryWriter('scaled')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #print(f"Running on device: {device}")
@@ -87,7 +87,7 @@ if __name__ == "__main__":
         audio = audio.cuda()
             
         #Damped sinusoisal encoder
-        sin_freqs, sin_amps, sin_damps = damp_encoder(mels)
+        sin_freqs, sin_amps, sin_damps = damp_encoder(mels, different_scaling=True)
 
         #Damped sinusoidal synthesiser
         fs = 16000
@@ -149,26 +149,26 @@ if __name__ == "__main__":
         # Save a checkpoint
 
         if i%75 == 0:
-          torch.save(damp_encoder.state_dict(), f'Normal/Checkpoints/damp_encoder_ckpt_normal_{epoch}_{i}.pt')
-          torch.save(damp_harm_encoder.state_dict(), f'Normal/Checkpoints/damp_harm_encoder_ckpt_normal_{epoch}_{i}.pt')
-          torch.save(damp_sin_signal, f'Normal/Outputs/damp_sin_signal_normal_{epoch}_{i}.pt')
-          torch.save(harm_signal, f'Normal/Outputs/harm_signal_normal_{epoch}_{i}.pt')
-          torch.save(harm_amps, f'Normal/Outputs/harm_amps_normal_{epoch}_{i}.pt')
-          torch.save(harmonics, f'Normal/Outputs/harmonics_normal_{epoch}_{i}.pt')
-          torch.save(sin_amps, f'Normal/Outputs/sin_amps_normal_{epoch}_{i}.pt')
-          torch.save(sin_damps, f'Normal/Outputs/sin_damps_normal_{epoch}_{i}.pt')
-          torch.save(upsampled_sin_damps, f'Normal/Outputs/upsampled_sin_damps_normal_{epoch}_{i}.pt')
-          torch.save(sin_freqs, f'Normal/Outputs/sin_freqs_normal_{epoch}_{i}.pt')
+          torch.save(damp_encoder.state_dict(), f'Scaled/Checkpoints/damp_encoder_ckpt_scaled_{epoch}_{i}.pt')
+          torch.save(damp_harm_encoder.state_dict(), f'Scaled/Checkpoints/damp_harm_encoder_ckpt_scaled_{epoch}_{i}.pt')
+          torch.save(damp_sin_signal, f'Scaled/Outputs/damp_sin_signal_scaled_{epoch}_{i}.pt')
+          torch.save(harm_signal, f'Scaled/Outputs/harm_signal_scaled_{epoch}_{i}.pt')
+          torch.save(harm_amps, f'Scaled/Outputs/harm_amps_scaled_{epoch}_{i}.pt')
+          torch.save(harmonics, f'Scaled/Outputs/harmonics_scaled_{epoch}_{i}.pt')
+          torch.save(sin_amps, f'Scaled/Outputs/sin_amps_scaled_{epoch}_{i}.pt')
+          torch.save(sin_damps, f'Scaled/Outputs/sin_damps_scaled_{epoch}_{i}.pt')
+          torch.save(upsampled_sin_damps, f'Scaled/Outputs/upsampled_sin_damps_scaled_{epoch}_{i}.pt')
+          torch.save(sin_freqs, f'Scaled/Outputs/sin_freqs_scaled_{epoch}_{i}.pt')
           
           sin_loss = torch.tensor(sin_recon_running_loss)
           harm_loss = torch.tensor(harm_recon_running_loss)
           consis_loss = torch.tensor(consistency_running_loss)
           tot_loss = torch.tensor(running_loss)
-          torch.save(sin_loss, f'Normal/Losses/sin_recon_loss_normal_{epoch}_{i}.pt')
-          torch.save(harm_loss, f'Normal/Losses/harm_recon_loss_normal_{epoch}_{i}.pt')
-          torch.save(consis_loss, f'Normal/Losses/consistency_loss_normal_{epoch}_{i}.pt')
-          torch.save(tot_loss, f'Normal/Losses/total_loss_normal_{epoch}_{i}.pt')
-          torch.save(audio, f'Normal/Outputs/audio_normal{epoch}_{i}.pt')
+          torch.save(sin_loss, f'Scaled/Losses/sin_recon_loss_scaled_{epoch}_{i}.pt')
+          torch.save(harm_loss, f'Scaled/Losses/harm_recon_loss_scaled_{epoch}_{i}.pt')
+          torch.save(consis_loss, f'Scaled/Losses/consistency_loss_scaled_{epoch}_{i}.pt')
+          torch.save(tot_loss, f'Scaled/Losses/total_loss_scaled_{epoch}_{i}.pt')
+          torch.save(audio, f'Scaled/Outputs/audio_scaled_{epoch}_{i}.pt')
 
         i += 1
         

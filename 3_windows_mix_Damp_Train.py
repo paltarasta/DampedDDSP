@@ -10,7 +10,7 @@ import os
 import Losses as l
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter('normal')
+writer = SummaryWriter('3_windows')
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #print(f"Running on device: {device}")
@@ -51,15 +51,15 @@ if __name__ == "__main__":
   damp_harm_encoder = n.DampSinToHarmEncoder().cuda()
 
   ### Each "window" containing one damping parameter is 128 samples long (upsampling from 125 to 16000), so
-  damp_sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128],
-                                                       hop_sizes=[128],
-                                                       win_lengths=[128],
+  damp_sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128, 64, 32],
+                                                       hop_sizes=[128, 64, 32],
+                                                       win_lengths=[128, 64, 32],
                                                        mag_distance="L2",
                                                        w_log_mag=0.0,
                                                        w_lin_mag=1.0).cuda()
-  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128],
-                                                   hop_sizes=[128],
-                                                   win_lengths=[128],
+  harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128, 64, 32],
+                                                   hop_sizes=[128, 64, 32],
+                                                   win_lengths=[128, 64, 32],
                                                    mag_distance="L2",
                                                    w_log_mag=0.0,
                                                    w_lin_mag=1.0).cuda()
@@ -149,26 +149,26 @@ if __name__ == "__main__":
         # Save a checkpoint
 
         if i%75 == 0:
-          torch.save(damp_encoder.state_dict(), f'Normal/Checkpoints/damp_encoder_ckpt_normal_{epoch}_{i}.pt')
-          torch.save(damp_harm_encoder.state_dict(), f'Normal/Checkpoints/damp_harm_encoder_ckpt_normal_{epoch}_{i}.pt')
-          torch.save(damp_sin_signal, f'Normal/Outputs/damp_sin_signal_normal_{epoch}_{i}.pt')
-          torch.save(harm_signal, f'Normal/Outputs/harm_signal_normal_{epoch}_{i}.pt')
-          torch.save(harm_amps, f'Normal/Outputs/harm_amps_normal_{epoch}_{i}.pt')
-          torch.save(harmonics, f'Normal/Outputs/harmonics_normal_{epoch}_{i}.pt')
-          torch.save(sin_amps, f'Normal/Outputs/sin_amps_normal_{epoch}_{i}.pt')
-          torch.save(sin_damps, f'Normal/Outputs/sin_damps_normal_{epoch}_{i}.pt')
-          torch.save(upsampled_sin_damps, f'Normal/Outputs/upsampled_sin_damps_normal_{epoch}_{i}.pt')
-          torch.save(sin_freqs, f'Normal/Outputs/sin_freqs_normal_{epoch}_{i}.pt')
+          torch.save(damp_encoder.state_dict(), f'3_Windows/Checkpoints/damp_encoder_ckpt_windows_{epoch}_{i}.pt')
+          torch.save(damp_harm_encoder.state_dict(), f'3_Windows/Checkpoints/damp_harm_encoder_ckpt_windows_{epoch}_{i}.pt')
+          torch.save(damp_sin_signal, f'3_Windows/Outputs/damp_sin_signal_windows_{epoch}_{i}.pt')
+          torch.save(harm_signal, f'3_Windows/Outputs/harm_signal_windows_{epoch}_{i}.pt')
+          torch.save(harm_amps, f'3_Windows/Outputs/harm_amps_windows_{epoch}_{i}.pt')
+          torch.save(harmonics, f'3_Windows/Outputs/harmonics_windows_{epoch}_{i}.pt')
+          torch.save(sin_amps, f'3_Windows/Outputs/sin_amps_windows_{epoch}_{i}.pt')
+          torch.save(sin_damps, f'3_Windows/Outputs/sin_damps_windows_{epoch}_{i}.pt')
+          torch.save(upsampled_sin_damps, f'3_Windows/Outputs/upsampled_sin_damps_windows_{epoch}_{i}.pt')
+          torch.save(sin_freqs, f'3_Windows/Outputs/sin_freqs_windows_{epoch}_{i}.pt')
           
           sin_loss = torch.tensor(sin_recon_running_loss)
           harm_loss = torch.tensor(harm_recon_running_loss)
           consis_loss = torch.tensor(consistency_running_loss)
           tot_loss = torch.tensor(running_loss)
-          torch.save(sin_loss, f'Normal/Losses/sin_recon_loss_normal_{epoch}_{i}.pt')
-          torch.save(harm_loss, f'Normal/Losses/harm_recon_loss_normal_{epoch}_{i}.pt')
-          torch.save(consis_loss, f'Normal/Losses/consistency_loss_normal_{epoch}_{i}.pt')
-          torch.save(tot_loss, f'Normal/Losses/total_loss_normal_{epoch}_{i}.pt')
-          torch.save(audio, f'Normal/Outputs/audio_normal{epoch}_{i}.pt')
+          torch.save(sin_loss, f'3_Windows/Losses/sin_recon_loss_windows_{epoch}_{i}.pt')
+          torch.save(harm_loss, f'3_Windows/Losses/harm_recon_loss_windows_{epoch}_{i}.pt')
+          torch.save(consis_loss, f'3_Windows/Losses/consistency_loss_windows_{epoch}_{i}.pt')
+          torch.save(tot_loss, f'3_Windows/Losses/total_loss_windows_{epoch}_{i}.pt')
+          torch.save(audio, f'3_Windows/Outputs/audio_windows_{epoch}_{i}.pt')
 
         i += 1
         
