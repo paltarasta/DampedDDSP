@@ -38,14 +38,22 @@ def upsample(signal, factor):
     return signal.permute(0, 2, 1)
 
 
-def upsample_to_damper(damping, factor):
-    damping = rearrange(damping, 'a b c -> b a c')
-    indices = torch.arange(factor).unsqueeze(-1)#.cuda()
-    exponent = - damping.abs() * indices
-    exponent = rearrange(exponent, 'a b c -> (a b) c')
-    exponent = exponent.unsqueeze(0)
-    damper = torch.exp(exponent)
-    return damper
+def upsample_to_damper(damping, factor, i):
+    dampers = []
+    for input in damping:
+      input = input.unsqueeze(0)
+      input = rearrange(input, 'a b c -> b a c')
+      indices = torch.arange(factor).unsqueeze(-1).cuda()
+      exponent = - input.abs() * indices
+      #if i%200 == 0:
+      #  torch.save(exponent, f'Outputs/ManyOutputs/exponent_exp2v2_{i}.pt')
+      exponent = rearrange(exponent, 'a b c -> (a b) c')
+      exponent = exponent.unsqueeze(0)
+      damper = torch.exp(exponent)
+      dampers.append(damper)
+    
+    dampers = torch.cat(dampers, dim=0).cuda()
+    return dampers
 
 
 #############################################################
@@ -244,8 +252,16 @@ def exp_sigmoid(x, exponent=10.0, max_value=2.0, threshold=1e-7):
 
   Bounds input to [threshold, max_value] with slope given by exponent.
 """
-  exponentiated = max_value * (torch.sigmoid(x)**torch.log(torch.tensor(exponent))) + threshold
+  exponentiated = max_value * torch.sigmoid(x)**torch.log(torch.tensor(exponent)) + threshold
   return exponentiated
+
+def exp_sigmoid_damping(x, exponent=10.0, max_value=1.0, threshold=1e-7):
+  """Exponentiated Sigmoid pointwise nonlinearity.
+
+  Bounds input to [threshold, max_value] with slope given by exponent.
+"""
+  exponentiated_damping = max_value * torch.sigmoid(x)**torch.log(torch.tensor(exponent)) + threshold
+  return exponentiated_damping
 
 
 # transcribed from magenta's tensorflow implementation

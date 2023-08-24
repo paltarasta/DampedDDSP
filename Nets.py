@@ -33,9 +33,7 @@ class ResidualBlock(nn.Module):
         res = self.other_first_conv(x)
       else:
         res = self.first_conv(x)
-
       residual = self.residual(res)
-
       out = self.layer_norm1(x)
       out = self.relu1(out)
       out = self.conv1(out)
@@ -108,10 +106,11 @@ class DampingMapping(nn.Module):
     self.amplitude_dense = nn.Linear(9*1024, 100)
     self.damping_dense = nn.Linear(9*1024, 100)
     self.amp_scale = h.exp_sigmoid
+    self.damp_scale = h.exp_sigmoid_damping
     self.register_buffer("scale", torch.logspace(np.log2(20), np.log2(8000), 64, base=2.0))
     self.softmax = nn.Softmax(dim=3)
 
-  def forward(self, x):
+  def forward(self, x, different_scaling=False):
     out = self.resnet(x)
     out = rearrange(out, 'z a b c -> z b c a')
     out = torch.reshape(out, (out.shape[0], 125, 9*1024))
@@ -125,9 +124,10 @@ class DampingMapping(nn.Module):
     amplitude = self.amp_scale(amplitude)
 
     damping = self.damping_dense(out)
-    print('prescale',damping.shape)
-    damping = self.amp_scale(damping)
-    print('postscale',damping.shape)
+    if different_scaling == True:
+      damping = self.damp_scale(damping)
+    else:
+      damping = self.amp_scale(damping)
 
     return frequency, amplitude, damping
   
@@ -180,15 +180,22 @@ class SinToHarmEncoder(nn.Module):
     self.amp_scale = h.exp_sigmoid
     self.softmax = nn.Softmax(dim=2)
     self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
+  
+  def init_hidden(self, batch_size):
+    hidden = torch.zeros(1, batch_size, 512).cuda() #num layers, batch size, hidden size
+    return hidden
 
   #def forward(self, sins, amps, damps):
   def forward(self, sins, amps):
     x = torch.cat((sins, amps), -1)
+    batch_size = x.shape[0]
+    hidden = self.init_hidden(batch_size)
+
     out = self.dense1(x)
     out = self.layer_norm(out)
     out = self.leaky_relu(out)
 
-    out, hidden = self.gru(out)
+    out, hidden = self.gru(out, hidden)
    
     out = self.dense2(out)
     out = self.layer_norm(out)
@@ -221,19 +228,25 @@ class DampSinToHarmEncoder(nn.Module):
     self.gru = nn.GRU(256, hidden_size=512, num_layers=1, batch_first=True)
     self.glob_amp_out = nn.Linear(256, 1) #1 harmonic amplitude per timestep
     self.cn_out = nn.Linear(256, 100) #harmonic distribution of amplitudes, so one for each sinusoid, and there are 100 sinusoids
-    self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic
     self.f0_out = nn.Linear(256, 64) #there is a distribution of 64 bins for the possible fundamental frequency
     self.amp_scale = h.exp_sigmoid
     self.softmax = nn.Softmax(dim=2)
     self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
+  
+  def init_hidden(self, batch_size):
+    hidden = torch.zeros(1, batch_size, 512).cuda() #num layers, batch size, hidden size
+    return hidden
 
   def forward(self, sins, amps, damps):
     x = torch.cat((sins, amps, damps), -1)
+    batch_size = x.shape[0]
+    hidden = self.init_hidden(batch_size)
+
     out = self.dense1(x)
     out = self.layer_norm(out)
     out = self.leaky_relu(out)
 
-    out, hidden = self.gru(out)
+    out, hidden = self.gru(out, hidden)
    
     out = self.dense2(out)
     out = self.layer_norm(out)

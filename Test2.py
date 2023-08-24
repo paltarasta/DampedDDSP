@@ -10,12 +10,12 @@ from einops import rearrange
 import matplotlib.pyplot as plt
 import os
 import Losses as l
-'''
+
 if __name__ == "__main__":
 
   ### Load tensors and create dataloader ###
-  MELS = torch.load('SavedTensors/melsynth_125.pt')[:100]
-  Y = torch.load('SavedTensors/ysynth_125.pt')[:100]
+  MELS = torch.load('SavedTensors/melsynth_125.pt')[:10]
+  Y = torch.load('SavedTensors/ysynth_125.pt')[:10]
 
   mixed_dataset = h.CustomDataset(MELS, Y)
   datasets = h.train_val_dataset(mixed_dataset)
@@ -58,18 +58,31 @@ if __name__ == "__main__":
 
         mels = mels#.cuda()
         audio = audio#.cuda()
-        mels = torch.ones(1,1,125,229)
+        fs = 16000
             
         #Damped sinusoisal encoder
-        sin_freqs, sin_amps, sin_damps = damp_encoder(mels)
-        print(sin_amps)
+        sin_freqs, sin_amps, sin_damps = damp_encoder(mels, different_scaling=True)
+        print(sin_freqs.shape)
 
-        #Damped sinusoidal synthesiser
-        fs = 16000
-        old_fs = sin_freqs.size(1)
-        factor = fs // old_fs
+        upsampled_sin_amps = h.UpsampleTime(sin_amps, fs)
+        upsampled_sin_freqs = h.UpsampleTime(sin_freqs, fs)
+        print(upsampled_sin_amps.shape, upsampled_sin_freqs.shape)
+
+        upsampled_sin_damps = h.upsample_to_damper(sin_damps, 128, i)
+        print('uped damops', upsampled_sin_damps.shape)
+        damp_sin_signal = s.damped_synth(upsampled_sin_freqs, upsampled_sin_amps, upsampled_sin_damps, fs)
+        print(damp_sin_signal.shape)
+        plt.figure()
+        plt.plot(damp_sin_signal[0].squeeze().detach())
+        plt.show()
+
         i += 1
+
+
 '''
+
+
+
 def expnew(x, exponent=10.0, max_value=2.0, threshold=1e-7):
   """Exponentiated Sigmoid pointwise nonlinearity.
 
@@ -97,7 +110,7 @@ print()
 
 
 
-
+'''
 
 
 
