@@ -142,6 +142,7 @@ if __name__ == "__main__":
           torch.save(damp_sin_signal, f'Audio/Outputs/damp_sin_signal_audio_{epoch}_{i}.pt')
           torch.save(harm_signal, f'Audio/Outputs/harm_signal_audio_{epoch}_{i}.pt')
           torch.save(harm_amps, f'Audio/Outputs/harm_amps_audio_{epoch}_{i}.pt')
+          torch.save(f0, f'Audio/Outputs/f0_audio_{epoch}_{i}.pt')
           torch.save(harmonics, f'Audio/Outputs/harmonics_audio_{epoch}_{i}.pt')
           torch.save(sin_amps, f'Audio/Outputs/sin_amps_audio_{epoch}_{i}.pt')
           torch.save(sin_damps, f'Audio/Outputs/sin_damps_audio_{epoch}_{i}.pt')

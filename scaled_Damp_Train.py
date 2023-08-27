@@ -154,6 +154,7 @@ if __name__ == "__main__":
           torch.save(damp_sin_signal, f'Scaled/Outputs/damp_sin_signal_scaled_{epoch}_{i}.pt')
           torch.save(harm_signal, f'Scaled/Outputs/harm_signal_scaled_{epoch}_{i}.pt')
           torch.save(harm_amps, f'Scaled/Outputs/harm_amps_scaled_{epoch}_{i}.pt')
+          torch.save(f0, f'Scaled/Outputs/f0_scaled_{epoch}_{i}.pt')
           torch.save(harmonics, f'Scaled/Outputs/harmonics_scaled_{epoch}_{i}.pt')
           torch.save(sin_amps, f'Scaled/Outputs/sin_amps_scaled_{epoch}_{i}.pt')
           torch.save(sin_damps, f'Scaled/Outputs/sin_damps_scaled_{epoch}_{i}.pt')

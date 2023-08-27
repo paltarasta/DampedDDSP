@@ -10,8 +10,8 @@ import os
 import Losses as l
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter('compressed')
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+writer = SummaryWriter('melspec')
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #print(f"Running on device: {device}")
 
@@ -56,13 +56,21 @@ if __name__ == "__main__":
                                                        win_lengths=[128],
                                                        mag_distance="L2",
                                                        w_log_mag=0.0,
-                                                       w_lin_mag=1.0).cuda()
+                                                       w_lin_mag=1.0,
+                                                       scale='mel',
+                                                       n_bins=64,
+                                                       sample_rate=16000,
+                                                       device='cuda').cuda()
   harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128],
                                                    hop_sizes=[128],
                                                    win_lengths=[128],
                                                    mag_distance="L2",
                                                    w_log_mag=0.0,
-                                                   w_lin_mag=1.0).cuda()
+                                                   w_lin_mag=1.0,
+                                                   scale='mel',
+                                                   n_bins=64,
+                                                   sample_rate=16000,
+                                                   device='cuda').cuda()
   consistency_criterion = l.KDEConsistencyLoss
 
   params = list(damp_encoder.parameters()) + list(damp_harm_encoder.parameters())
@@ -100,8 +108,6 @@ if __name__ == "__main__":
 
         damp_sin_signal = s.damped_synth(upsampled_sin_freqs, upsampled_sin_amps, upsampled_sin_damps, fs)
         damp_sin_signal = rearrange(damp_sin_signal, 'a b c -> a c b')
-        max_damp = torch.max(damp_sin_signal.abs()) #compression to scale better with target audio
-        damp_sin_signal = damp_sin_signal / max_damp
 
         #Sinusoidal reconstruction loss
         sin_recon_loss = damp_sin_criterion(damp_sin_signal, audio.unsqueeze(0))
@@ -124,8 +130,6 @@ if __name__ == "__main__":
 
         harm_signal = s.sinusoidal_synth(upsampled_harmonics, upsampled_harm_amps, fs) #if we use the sinusoidal synth it defeats the purpose?
         harm_signal = rearrange(harm_signal, 'a b c -> a c b')
-        max_harm = torch.max(harm_signal.abs()) #compression to scale better with target audio
-        harm_signal = harm_signal / max_harm
 
         #Harmonic reconstruction loss
         harm_recon_loss = harm_criterion(harm_signal, audio.unsqueeze(0))
@@ -153,27 +157,27 @@ if __name__ == "__main__":
         # Save a checkpoint
 
         if i%75 == 0:
-          torch.save(damp_encoder.state_dict(), f'Compressed/Checkpoints/damp_encoder_ckpt_compressed{epoch}_{i}.pt')
-          torch.save(damp_harm_encoder.state_dict(), f'Compressed/Checkpoints/damp_harm_encoder_ckpt_compressed{epoch}_{i}.pt')
-          torch.save(damp_sin_signal, f'Compressed/Outputs/damp_sin_signal_compressed{epoch}_{i}.pt')
-          torch.save(harm_signal, f'Compressed/Outputs/harm_signal_compressed{epoch}_{i}.pt')
-          torch.save(harm_amps, f'Compressed/Outputs/harm_amps_compressed{epoch}_{i}.pt')
-          torch.save(f0, f'Compressed/Outputs/f0_compressed_{epoch}_{i}.pt')
-          torch.save(harmonics, f'Compressed/Outputs/harmonics_compressed{epoch}_{i}.pt')
-          torch.save(sin_amps, f'Compressed/Outputs/sin_amps_compressed{epoch}_{i}.pt')
-          torch.save(sin_damps, f'Compressed/Outputs/sin_damps_compressed{epoch}_{i}.pt')
-          torch.save(upsampled_sin_damps, f'Compressed/Outputs/upsampled_sin_damps_compressed{epoch}_{i}.pt')
-          torch.save(sin_freqs, f'Compressed/Outputs/sin_freqs_compressed{epoch}_{i}.pt')
+          torch.save(damp_encoder.state_dict(), f'Melspec/Checkpoints/damp_encoder_ckpt_melspec_{epoch}_{i}.pt')
+          torch.save(damp_harm_encoder.state_dict(), f'Melspec/Checkpoints/damp_harm_encoder_ckpt_melspec_{epoch}_{i}.pt')
+          torch.save(damp_sin_signal, f'Melspec/Outputs/damp_sin_signal_melspec_{epoch}_{i}.pt')
+          torch.save(harm_signal, f'Melspec/Outputs/harm_signal_melspec_{epoch}_{i}.pt')
+          torch.save(harm_amps, f'Melspec/Outputs/harm_amps_melspec_{epoch}_{i}.pt')
+          torch.save(f0, f'Melspec/Outputs/f0_melspec_{epoch}_{i}.pt')
+          torch.save(harmonics, f'Melspec/Outputs/harmonics_melspec_{epoch}_{i}.pt')
+          torch.save(sin_amps, f'Melspec/Outputs/sin_amps_melspec_{epoch}_{i}.pt')
+          torch.save(sin_damps, f'Melspec/Outputs/sin_damps_melspec_{epoch}_{i}.pt')
+          torch.save(upsampled_sin_damps, f'Melspec/Outputs/upsampled_sin_damps_melspec_{epoch}_{i}.pt')
+          torch.save(sin_freqs, f'Melspec/Outputs/sin_freqs_melspec_{epoch}_{i}.pt')
           
           sin_loss = torch.tensor(sin_recon_running_loss)
           harm_loss = torch.tensor(harm_recon_running_loss)
           consis_loss = torch.tensor(consistency_running_loss)
           tot_loss = torch.tensor(running_loss)
-          torch.save(sin_loss, f'Compressed/Losses/sin_recon_loss_compressed{epoch}_{i}.pt')
-          torch.save(harm_loss, f'Compressed/Losses/harm_recon_loss_compressed{epoch}_{i}.pt')
-          torch.save(consis_loss, f'Compressed/Losses/consistency_loss_compressed{epoch}_{i}.pt')
-          torch.save(tot_loss, f'Compressed/Losses/total_loss_compressed{epoch}_{i}.pt')
-          torch.save(audio, f'Compressed/Outputs/audio_compressed{epoch}_{i}.pt')
+          torch.save(sin_loss, f'Melspec/Losses/sin_recon_loss_melspec_{epoch}_{i}.pt')
+          torch.save(harm_loss, f'Melspec/Losses/harm_recon_loss_melspec_{epoch}_{i}.pt')
+          torch.save(consis_loss, f'Melspec/Losses/consistency_loss_melspec_{epoch}_{i}.pt')
+          torch.save(tot_loss, f'Melspec/Losses/total_loss_melspec_{epoch}_{i}.pt')
+          torch.save(audio, f'Melspec/Outputs/audio_melspec_{epoch}_{i}.pt')
 
         i += 1
         
@@ -203,8 +207,6 @@ if __name__ == "__main__":
 
         damp_sin_signal_val = s.damped_synth(upsampled_sin_freqs_val, upsampled_sin_amps_val, upsampled_sin_damps_val, fs_val)
         damp_sin_signal_val = rearrange(damp_sin_signal_val, 'a b c -> a c b')
-        max_damp_val = torch.max(damp_sin_signal_val.abs()) #compression to scale better with target audio
-        damp_sin_signal_val = damp_sin_signal_val / max_damp_val
 
         #Sinusoidal reconstruction loss
         sin_recon_loss_val = damp_sin_criterion(damp_sin_signal_val, audio_val.unsqueeze(0))
@@ -227,8 +229,6 @@ if __name__ == "__main__":
 
         harm_signal_val = s.sinusoidal_synth(upsampled_harmonics_val, upsampled_harm_amps_val, fs_val) #if we use the sinusoidal synth it defeats the purpose?
         harm_signal_val = rearrange(harm_signal_val, 'a b c -> a c b')
-        max_harm_val = torch.max(harm_signal_val.abs()) #compression to scale better with target audio
-        harm_signal_val = harm_signal_val / max_harm_val
 
         #Harmonic reconstruction loss
         harm_recon_loss_val = harm_criterion(harm_signal_val, audio_val.unsqueeze(0))
