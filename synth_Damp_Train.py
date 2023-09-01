@@ -43,14 +43,14 @@ if __name__ == "__main__":
                                                        hop_sizes=[128],
                                                        win_lengths=[128],
                                                        mag_distance="L2",
-                                                       w_log_mag=0.0,
-                                                       w_lin_mag=1.0).cuda()
+                                                       w_log_mag=1.0,
+                                                       w_lin_mag=0.0).cuda()
   harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128],
                                                    hop_sizes=[128],
                                                    win_lengths=[128],
                                                    mag_distance="L2",
-                                                   w_log_mag=0.0,
-                                                   w_lin_mag=1.0).cuda()
+                                                   w_log_mag=1.0,
+                                                   w_lin_mag=0.0).cuda()
   consistency_criterion = l.KDEConsistencyLoss
 
   params = list(damp_encoder.parameters()) + list(damp_harm_encoder.parameters())
@@ -196,7 +196,7 @@ if __name__ == "__main__":
         sin_freqs_val = sin_freqs_val.detach() #detach gradients before they go into the harmonic encoder
         sin_amps_val = sin_amps_val.detach()
         sin_damps_val = sin_damps_val.detach() #do we need to do this?
-        glob_amp_val, harm_dist_val, f0_val, harm_damps_val = damp_harm_encoder(sin_freqs_val, sin_amps_val, sin_damps_val)
+        glob_amp_val, harm_dist_val, f0_val = damp_harm_encoder(sin_freqs_val, sin_amps_val, sin_damps_val)
 
         #Reconstruct audio from harmonic encoder results
         harmonics_val = h.get_harmonic_frequencies(f0_val) #need this to then do the sin synth - creates a bank of 100 sinusoids

@@ -39,6 +39,9 @@ if __name__ == "__main__":
   ### Set up ###
   sin_encoder = n.SinMapToFrequency().cuda()
   harm_encoder = n.SinToHarmEncoder().cuda()
+  sin_encoder.load_state_dict(torch.load('Pretrain/Checkpoints/sin_encoder_ckpt_0_750'))
+  harm_encoder.load_state_dict(torch.load('Pretrain/Checkpoints/harm_encoder_ckpt_0_750'))
+  
 
   sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[1024, 2048, 512],
                                                   hop_sizes=[1024, 2048, 512],
@@ -59,7 +62,7 @@ if __name__ == "__main__":
   optimizer = torch.optim.Adam(params, lr=0.0003)
 
   # Training loop
-  num_epochs = 5
+  num_epochs = 4
   i = 0
 
   for epoch in range(num_epochs):

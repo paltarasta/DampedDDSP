@@ -123,6 +123,8 @@ def LoadAudio(audio_dir, annotation_dir, sample_rate):
   ANNOTS = []
   
   for idx, track in enumerate(audio_tracks):
+    if 'csv' in track:
+      continue
     if idx > 200:
       break
     audio_path = audio_dir + track
