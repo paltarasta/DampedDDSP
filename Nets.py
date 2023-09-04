@@ -182,7 +182,7 @@ class SinToHarmEncoder(nn.Module):
     self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
   
   def init_hidden(self, batch_size):
-    hidden = torch.zeros(1, batch_size, 512).cuda() #num layers, batch size, hidden size
+    hidden = torch.zeros(1, batch_size, 512)#.cuda() #num layers, batch size, hidden size
     return hidden
 
   #def forward(self, sins, amps, damps):
@@ -232,9 +232,10 @@ class DampSinToHarmEncoder(nn.Module):
     self.amp_scale = h.exp_sigmoid
     self.softmax = nn.Softmax(dim=2)
     self.register_buffer("freq_scale", torch.logspace(np.log2(20), np.log2(1200), 64, base=2.0))
+    self.damping_out = nn.Linear(256, 100) #damping coefficient for each harmonic DLELTE THIS WHEN DONE WITH TEST
   
   def init_hidden(self, batch_size):
-    hidden = torch.zeros(1, batch_size, 512).cuda() #num layers, batch size, hidden size
+    hidden = torch.zeros(1, batch_size, 512)#.cuda() #num layers, batch size, hidden size
     return hidden
 
   def forward(self, sins, amps, damps):
@@ -245,9 +246,7 @@ class DampSinToHarmEncoder(nn.Module):
     out = self.dense1(x)
     out = self.layer_norm(out)
     out = self.leaky_relu(out)
-
     out, hidden = self.gru(out, hidden)
-   
     out = self.dense2(out)
     out = self.layer_norm(out)
     out = self.leaky_relu(out)

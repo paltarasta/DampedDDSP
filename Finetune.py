@@ -143,6 +143,7 @@ if __name__ == "__main__":
           # Save a checkpoint
           torch.save(sin_encoder.state_dict(), f'Finetune/Checkpoints/finetune_sin_encoder_ckpt_{epoch}_{i}.pt')
           torch.save(harm_encoder.state_dict(), f'Finetune/Checkpoints/finetune_harm_encoder_ckpt_{epoch}_{i}.pt')
+          torch.save(f0, f'Finetune/Outputs/f0_finetune_{epoch}_{i}.pt')
           sin_loss = torch.tensor(sin_recon_running_loss)
           harm_loss = torch.tensor(harm_recon_running_loss)
           consis_loss = torch.tensor(consistency_running_loss)

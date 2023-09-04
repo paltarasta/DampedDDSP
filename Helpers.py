@@ -15,7 +15,7 @@ def UpsampleTime(x, fs=16000): #upsample time dimension after using encoders
   timesteps = x[0,:,0].shape[0]
   upsampled_timesteps = fs
   channels = x[0,0,:].shape[0]
-  upsampled = torch.zeros((batch, upsampled_timesteps, channels)).cuda()
+  upsampled = torch.zeros((batch, upsampled_timesteps, channels))#.cuda()
 
   j = 1
 
@@ -43,7 +43,7 @@ def upsample_to_damper(damping, factor, i):
     for input in damping:
       input = input.unsqueeze(0)
       input = rearrange(input, 'a b c -> b a c')
-      indices = torch.arange(factor).unsqueeze(-1).cuda()
+      indices = torch.arange(factor).unsqueeze(-1)#.cuda()
       exponent = - input.abs() * indices
       #if i%200 == 0:
       #  torch.save(exponent, f'Outputs/ManyOutputs/exponent_exp2v2_{i}.pt')
@@ -52,7 +52,7 @@ def upsample_to_damper(damping, factor, i):
       damper = torch.exp(exponent)
       dampers.append(damper)
     
-    dampers = torch.cat(dampers, dim=0).cuda()
+    dampers = torch.cat(dampers, dim=0)#.cuda()
     return dampers
 
 
@@ -123,7 +123,9 @@ def LoadAudio(audio_dir, annotation_dir, sample_rate):
   ANNOTS = []
   
   for idx, track in enumerate(audio_tracks):
-    if idx > 200:
+    #if 'csv' in track:
+     # continue
+    if idx > 229:
       break
     audio_path = audio_dir + track
     annotation_path = annotation_dir + track.strip('wav') + 'csv'
@@ -137,6 +139,7 @@ def LoadAudio(audio_dir, annotation_dir, sample_rate):
 
     ### to mel specs ###
     MELS = MakeMelsTensor(sliced_x, audio_fs, MELS, False)
+    print(len(MELS))
     
     ### annotations ###
     file = open(annotation_path, 'r')
@@ -147,6 +150,7 @@ def LoadAudio(audio_dir, annotation_dir, sample_rate):
     upsampled_csv_data = upsampled_csv_data[:len(x)]
     sliced_csv_data = slice_audio(upsampled_csv_data, step)
     ANNOTS += sliced_csv_data
+    print(len(ANNOTS))
     
   # Stack
   MELS = torch.stack(MELS).unsqueeze(1)
@@ -170,6 +174,20 @@ class CustomDataset(Dataset):
     y = self.targets[idx]
     x = self.mels[idx]
     return x, y
+  
+### Create a custom dataset class for evaluation###
+class EvalDataset(Dataset):
+  def __init__(self, mels, targets, annotations):
+    self.targets = targets
+    self.mels = mels
+    self.annotations = annotations
+  def __len__(self):
+    return len(self.targets)
+  def __getitem__(self, idx):
+    y = self.targets[idx]
+    x = self.mels[idx]
+    annot = self.annotations[idx]
+    return x, y, annot
 
 ### Create dataset class for synthetic data and controls ###
 class SyntheticDataset(Dataset):
@@ -276,7 +294,7 @@ def get_harmonic_frequencies(f0):
     harmonic_frequencies: Oscillator frequencies (Hz).
       Shape [batch_size, :, n_harmonics].
   """
-  f_ratios = torch.linspace(1.0, 100.0, 100).cuda()
+  f_ratios = torch.linspace(1.0, 100.0, 100)#.cuda()
   f_ratios = f_ratios.unsqueeze(0).unsqueeze(0)
   harmonic_frequencies = f0 * f_ratios
   return harmonic_frequencies
@@ -284,15 +302,15 @@ def get_harmonic_frequencies(f0):
 
 # transcribed from magenta's tensorflow implementation
 def remove_above_nyquist(harmonics, cn, sr=16000):
-    condition = torch.ge(harmonics, sr/2).cuda()
-    cn = torch.where(condition, torch.zeros_like(cn), cn).cuda()
+    condition = torch.ge(harmonics, sr/2)#.cuda()
+    cn = torch.where(condition, torch.zeros_like(cn), cn)#.cuda()
     return cn
 
 
 # transcribed from magenta's tensorflow implementation
 def safe_divide(numerator, denominator, eps=1e-7):
   """Avoid dividing by zero by adding a small epsilon."""
-  safe_denominator = torch.where(denominator == 0.0, eps, denominator).cuda()
+  safe_denominator = torch.where(denominator == 0.0, eps, denominator)#.cuda()
   return numerator / safe_denominator
 
 

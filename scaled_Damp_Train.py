@@ -49,20 +49,23 @@ if __name__ == "__main__":
   ### Set up ###
   damp_encoder = n.DampingMapping().cuda()
   damp_harm_encoder = n.DampSinToHarmEncoder().cuda()
+  damp_encoder.load_state_dict(torch.load('/home/ec22156/DampedDDSPCode/Scaled/Checkpoints/damp_encoder_ckpt_scaled_0_675.pt'))
+  damp_harm_encoder.load_state_dict(torch.load('/home/ec22156/DampedDDSPCode/Scaled/Checkpoints/damp_harm_encoder_ckpt_scaled_0_675.pt'))
+
 
   ### Each "window" containing one damping parameter is 128 samples long (upsampling from 125 to 16000), so
   damp_sin_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128],
                                                        hop_sizes=[128],
                                                        win_lengths=[128],
                                                        mag_distance="L2",
-                                                       w_log_mag=0.0,
-                                                       w_lin_mag=1.0).cuda()
+                                                       w_log_mag=1.0,
+                                                       w_lin_mag=0.0).cuda()
   harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128],
                                                    hop_sizes=[128],
                                                    win_lengths=[128],
                                                    mag_distance="L2",
-                                                   w_log_mag=0.0,
-                                                   w_lin_mag=1.0).cuda()
+                                                   w_log_mag=1.0,
+                                                   w_lin_mag=0.0).cuda()
   consistency_criterion = l.KDEConsistencyLoss
 
   params = list(damp_encoder.parameters()) + list(damp_harm_encoder.parameters())
@@ -103,7 +106,7 @@ if __name__ == "__main__":
 
         #Sinusoidal reconstruction loss
         sin_recon_loss = damp_sin_criterion(damp_sin_signal, audio.unsqueeze(0))
-        writer.add_scalar('Sinusoidal Recon loss/train', sin_recon_loss, i)
+        writer.add_scalar('Sinusoidal Recon loss/epoch 2 train', sin_recon_loss, i)
 
         #Harmonic encoder
         sin_freqs = sin_freqs.detach() #detach gradients before they go into the harmonic encoder
@@ -125,15 +128,15 @@ if __name__ == "__main__":
 
         #Harmonic reconstruction loss
         harm_recon_loss = harm_criterion(harm_signal, audio.unsqueeze(0))
-        writer.add_scalar('Harmonic Recon loss/train', harm_recon_loss, i)
+        writer.add_scalar('Harmonic Recon loss/epoch 2 train', harm_recon_loss, i)
 
         #Consistency loss
         consistency_loss = consistency_criterion(harm_amps, harmonics, sin_amps, sin_freqs)
-        writer.add_scalar('Consistency loss/train', consistency_loss, i)
+        writer.add_scalar('Consistency loss/epoch 2 train', consistency_loss, i)
 
         #Total loss
         total_loss = sin_recon_loss + harm_recon_loss + (0.1 * consistency_loss)
-        writer.add_scalar('Loss/train', total_loss, i)
+        writer.add_scalar('Loss/epoch 2 train', total_loss, i)
 
         optimizer.zero_grad()
         total_loss.backward()
@@ -154,6 +157,7 @@ if __name__ == "__main__":
           torch.save(damp_sin_signal, f'Scaled/Outputs/damp_sin_signal_scaled_{epoch}_{i}.pt')
           torch.save(harm_signal, f'Scaled/Outputs/harm_signal_scaled_{epoch}_{i}.pt')
           torch.save(harm_amps, f'Scaled/Outputs/harm_amps_scaled_{epoch}_{i}.pt')
+          torch.save(f0, f'Scaled/Outputs/f0_scaled_{epoch}_{i}.pt')
           torch.save(harmonics, f'Scaled/Outputs/harmonics_scaled_{epoch}_{i}.pt')
           torch.save(sin_amps, f'Scaled/Outputs/sin_amps_scaled_{epoch}_{i}.pt')
           torch.save(sin_damps, f'Scaled/Outputs/sin_damps_scaled_{epoch}_{i}.pt')
@@ -207,7 +211,7 @@ if __name__ == "__main__":
         sin_freqs_val = sin_freqs_val.detach() #detach gradients before they go into the harmonic encoder
         sin_amps_val = sin_amps_val.detach()
         sin_damps_val = sin_damps_val.detach() #do we need to do this?
-        glob_amp_val, harm_dist_val, f0_val, harm_damps_val = damp_harm_encoder(sin_freqs_val, sin_amps_val, sin_damps_val)
+        glob_amp_val, harm_dist_val, f0_val = damp_harm_encoder(sin_freqs_val, sin_amps_val, sin_damps_val)
 
         #Reconstruct audio from harmonic encoder results
         harmonics_val = h.get_harmonic_frequencies(f0_val) #need this to then do the sin synth - creates a bank of 100 sinusoids
@@ -227,7 +231,7 @@ if __name__ == "__main__":
 
         #Consistency loss
         consistency_loss_val = consistency_criterion(harm_amps_val, harmonics_val, sin_amps_val, sin_freqs_val)
-        writer.add_scalar('Consistency loss/train', consistency_loss_val, j)
+        writer.add_scalar('Consistency loss/val', consistency_loss_val, j)
 
         #Total loss
         total_loss_val = sin_recon_loss_val + harm_recon_loss_val + (0.1 * consistency_loss_val)

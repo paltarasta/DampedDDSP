@@ -55,14 +55,14 @@ if __name__ == "__main__":
                                                        hop_sizes=[128],
                                                        win_lengths=[128],
                                                        mag_distance="L2",
-                                                       w_log_mag=0.0,
-                                                       w_lin_mag=1.0).cuda()
+                                                       w_log_mag=1.0,
+                                                       w_lin_mag=0.0).cuda()
   harm_criterion = al.freq.MultiResolutionSTFTLoss(fft_sizes=[128],
                                                    hop_sizes=[128],
                                                    win_lengths=[128],
                                                    mag_distance="L2",
-                                                   w_log_mag=0.0,
-                                                   w_lin_mag=1.0).cuda()
+                                                   w_log_mag=1.0,
+                                                   w_lin_mag=0.0).cuda()
   consistency_criterion = l.KDEConsistencyLoss
 
   params = list(damp_encoder.parameters()) + list(damp_harm_encoder.parameters())
@@ -154,6 +154,7 @@ if __name__ == "__main__":
           torch.save(damp_sin_signal, f'Normal/Outputs/damp_sin_signal_normal_{epoch}_{i}.pt')
           torch.save(harm_signal, f'Normal/Outputs/harm_signal_normal_{epoch}_{i}.pt')
           torch.save(harm_amps, f'Normal/Outputs/harm_amps_normal_{epoch}_{i}.pt')
+          torch.save(f0, f'Normal/Outputs/f0_normal_{epoch}_{i}.pt')
           torch.save(harmonics, f'Normal/Outputs/harmonics_normal_{epoch}_{i}.pt')
           torch.save(sin_amps, f'Normal/Outputs/sin_amps_normal_{epoch}_{i}.pt')
           torch.save(sin_damps, f'Normal/Outputs/sin_damps_normal_{epoch}_{i}.pt')
@@ -207,7 +208,7 @@ if __name__ == "__main__":
         sin_freqs_val = sin_freqs_val.detach() #detach gradients before they go into the harmonic encoder
         sin_amps_val = sin_amps_val.detach()
         sin_damps_val = sin_damps_val.detach() #do we need to do this?
-        glob_amp_val, harm_dist_val, f0_val, harm_damps_val = damp_harm_encoder(sin_freqs_val, sin_amps_val, sin_damps_val)
+        glob_amp_val, harm_dist_val, f0_val = damp_harm_encoder(sin_freqs_val, sin_amps_val, sin_damps_val)
 
         #Reconstruct audio from harmonic encoder results
         harmonics_val = h.get_harmonic_frequencies(f0_val) #need this to then do the sin synth - creates a bank of 100 sinusoids
