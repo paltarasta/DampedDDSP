@@ -123,9 +123,9 @@ def LoadAudio(audio_dir, annotation_dir, sample_rate):
   ANNOTS = []
   
   for idx, track in enumerate(audio_tracks):
-    if 'csv' in track:
-      continue
-    if idx > 200:
+    #if 'csv' in track:
+     # continue
+    if idx > 229:
       break
     audio_path = audio_dir + track
     annotation_path = annotation_dir + track.strip('wav') + 'csv'
@@ -139,6 +139,7 @@ def LoadAudio(audio_dir, annotation_dir, sample_rate):
 
     ### to mel specs ###
     MELS = MakeMelsTensor(sliced_x, audio_fs, MELS, False)
+    print(len(MELS))
     
     ### annotations ###
     file = open(annotation_path, 'r')
@@ -149,6 +150,7 @@ def LoadAudio(audio_dir, annotation_dir, sample_rate):
     upsampled_csv_data = upsampled_csv_data[:len(x)]
     sliced_csv_data = slice_audio(upsampled_csv_data, step)
     ANNOTS += sliced_csv_data
+    print(len(ANNOTS))
     
   # Stack
   MELS = torch.stack(MELS).unsqueeze(1)

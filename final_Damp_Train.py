@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
   DL_DS = {x:DataLoader(datasets[x], 16, shuffle=True, num_workers=2) for x in ['train','val']} #num_worker should = 4 * num_GPU
   
-  ### Set up ###
+  ### Set up ### 
   damp_encoder = n.DampingMapping().cuda()
   damp_harm_encoder = n.DampSinToHarmEncoder().cuda()
 
